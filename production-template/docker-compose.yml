@@ -1,0 +1,109 @@
+services:
+  # Nginx Web Server (serves your front-end)
+  nginx:
+    image: nginx:alpine
+    container_name: ${APP_NAME}-nginx
+    ports:
+      - "${APP_PORT}:80"
+    volumes:
+      - ${APP_PATH}:/var/www/html:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      - php
+    networks:
+      - app-network
+    restart: always
+
+  # PHP 8.3 FPM Service (processes the back-end PHP code)
+  php:
+    build:
+      context: ./php
+      dockerfile: Dockerfile
+    container_name: ${APP_NAME}-php
+    volumes:
+      - ${APP_PATH}:/var/www/html
+    networks:
+      - app-network
+    restart: always
+
+  # MariaDB Database Service (Active by default)
+  mariadb:
+    image: mariadb:latest
+    container_name: ${APP_NAME}-database
+    # Only bind MariaDB to localhost (127.0.0.1) so no external devices can connect directly.
+    ports:
+      - "127.0.0.1:3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - app-network
+    restart: always
+
+  # PostgreSQL Database Service (Comment out MariaDB and uncomment this to switch)
+  # postgres:
+  #   image: postgres:latest
+  #   container_name: ${APP_NAME}-database
+  #   # Only bind PostgreSQL to localhost (127.0.0.1) so no external devices can connect directly.
+  #   ports:
+  #     - "127.0.0.1:5432:5432"
+  #   environment:
+  #     POSTGRES_DB: ${DB_NAME}
+  #     POSTGRES_USER: ${DB_USER}
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #   volumes:
+  #     - pg_data:/var/lib/postgresql
+  #   networks:
+  #     - app-network
+  #   restart: always
+
+  # phpMyAdmin Web UI for MariaDB (Uncomment to use)
+  # phpmyadmin:
+  #   image: phpmyadmin:latest
+  #   container_name: ${APP_NAME}-phpmyadmin
+  #   ports:
+  #     - "127.0.0.1:${PHPMYADMIN_PORT}:80"
+  #   environment:
+  #     PMA_HOST: ${APP_NAME}-database
+  #     PMA_PORT: 3306
+  #     PMA_ARBITRARY: 1
+  #   depends_on:
+  #     - mariadb
+  #   networks:
+  #     - app-network
+  #   restart: always
+
+  # pgAdmin Web UI for PostgreSQL (Uncomment to use)
+  # pgadmin:
+  #   image: dpage/pgadmin4:latest
+  #   container_name: ${APP_NAME}-pgadmin
+  #   ports:
+  #     - "127.0.0.1:${PGADMIN_PORT}:80"
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+  #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+  #     PGADMIN_LISTEN_PORT: 80
+  #   volumes:
+  #     - pgadmin_data:/var/lib/pgadmin
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - app-network
+  #   restart: always
+
+networks:
+  app-network:
+    name: ${APP_NAME}-network
+    driver: bridge
+
+volumes:
+  db_data:
+    name: ${APP_NAME}-db-data
+  # pg_data:
+  #   name: ${APP_NAME}-pg-data
+  # pgadmin_data:
+  #   name: ${APP_NAME}-pgadmin-data

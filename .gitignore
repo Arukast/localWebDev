@@ -1,0 +1,6 @@
+# Ignore local environment variables containing passwords
+.env
+
+# Ignore all user projects, but keep our diagnostic landing page
+projects/*
+!projects/index.php
