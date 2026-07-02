@@ -1,0 +1,189 @@
+# ==========================================
+# 1. Dynamic Domain Routing (*.php82.test)
+# ==========================================
+server {
+    listen 80;
+    server_name ~^(?<project>.+)\.php82\.test$;
+
+    # Default to public if it exists, fallback to project root
+    set $project_root /var/www/html/$project;
+    if (-d /var/www/html/$project/public) {
+        set $project_root /var/www/html/$project/public;
+    }
+    if (-f /var/www/html/$project/index.php) {
+        set $project_root /var/www/html/$project;
+    }
+    root $project_root;
+
+    index index.php index.html;
+    charset utf-8;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    location ~ \.php$ {
+        fastcgi_pass php82:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\.(?!well-known).* { deny all; }
+}
+
+# ==========================================
+# 2. Dynamic Domain Routing (*.php83.test)
+# ==========================================
+server {
+    listen 80;
+    server_name ~^(?<project>.+)\.php83\.test$;
+
+    set $project_root /var/www/html/$project;
+    if (-d /var/www/html/$project/public) {
+        set $project_root /var/www/html/$project/public;
+    }
+    if (-f /var/www/html/$project/index.php) {
+        set $project_root /var/www/html/$project;
+    }
+    root $project_root;
+
+    index index.php index.html;
+    charset utf-8;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    location ~ \.php$ {
+        fastcgi_pass php83:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\.(?!well-known).* { deny all; }
+}
+
+# =======================================================
+# 3. Port Fallback (PHP 8.2) - Handles Subfolders Cleanly
+# =======================================================
+server {
+    listen 8082;
+    server_name localhost;
+    root /var/www/html;
+    index index.php index.html;
+    charset utf-8;
+
+    # 2. Subfolder project routing logic
+    location / {
+        if ($uri ~ ^/([^/]+)(/.*)?$) {
+            set $project_name $1;
+        }
+
+        # Route through public/ only for framework apps (no root index.php)
+        set $use_public "0";
+        if (-d /var/www/html/$project_name/public) {
+            set $use_public "1";
+        }
+        if (-f /var/www/html/$project_name/index.php) {
+            set $use_public "0";
+        }
+
+        if ($use_public = "1") {
+            rewrite ^/([^/]+)(/.*)?$ /$1/public/index.php?$query_string last;
+        }
+
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # 3. Global execution block for all PHP processes
+    location ~ \.php$ {
+        fastcgi_pass php82:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+    location ~ /\.(?!well-known).* { deny all; }
+}
+
+# =======================================================
+# 4. Port Fallback (PHP 8.3) - Handles Subfolders Cleanly
+# =======================================================
+server {
+    listen 8083;
+    server_name localhost;
+    root /var/www/html;
+    index index.php index.html;
+    charset utf-8;
+
+    # 2. Subfolder project routing logic
+    location / {
+        if ($uri ~ ^/([^/]+)(/.*)?$) {
+            set $project_name $1;
+        }
+
+        # Route through public/ only for framework apps (no root index.php)
+        set $use_public "0";
+        if (-d /var/www/html/$project_name/public) {
+            set $use_public "1";
+        }
+        if (-f /var/www/html/$project_name/index.php) {
+            set $use_public "0";
+        }
+
+        if ($use_public = "1") {
+            rewrite ^/([^/]+)(/.*)?$ /$1/public/index.php?$query_string last;
+        }
+
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # 3. Global execution block for all PHP processes
+    location ~ \.php$ {
+        fastcgi_pass php83:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+    location ~ /\.(?!well-known).* { deny all; }
+}
+
+# =======================================================
+# 5. Tailscale Routing for Your Active Project
+# =======================================================
+server {
+    listen 8083;
+    server_name ${TAILSCALE_DOMAIN};
+
+    root /var/www/html/${TAILSCALE_PROJECT_PATH};
+    index index.php index.html;
+    charset utf-8;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass php83:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+    location ~ /\.(?!well-known).* { deny all; }
+}

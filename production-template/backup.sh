@@ -18,10 +18,18 @@ mkdir -p "$BACKUP_DIR"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="$BACKUP_DIR/pos_db_backup_$TIMESTAMP.sql"
 
-# Load database credentials from the local .env file
+# Load database credentials safely from the local .env file
 if [ -f .env ]; then
-    # Read .env and filter comments
-    export $(grep -v '^#' .env | xargs)
+    echo "Loading environment configurations..."
+    # Read line-by-line to safely parse variables with spaces/special characters
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Strip leading/trailing whitespaces
+        line=$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+        # Skip empty lines and lines starting with '#'
+        if [[ -n "$line" && ! "$line" =~ ^# ]]; then
+            export "$line"
+        fi
+    done < .env
 else
     echo "Error: .env file not found in current directory."
     exit 1
@@ -35,7 +43,7 @@ echo "=========================================="
 # === Database Backup Execution ===
 
 # Option A: MariaDB / MySQL (Active by default)
-docker exec "$APP_NAME-database" mariadb-dump -u root -p"$DB_ROOT_PASSWORD" "$DB_NAME" > "$BACKUP_FILE"
+docker exec "$APP_NAME-database" mariadb-dump --single-transaction -u root -p"$DB_ROOT_PASSWORD" "$DB_NAME" > "$BACKUP_FILE"
 
 # Option B: PostgreSQL (Comment out Option A and uncomment this to switch)
 # docker exec "$APP_NAME-database" pg_dump -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE"

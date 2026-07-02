@@ -4,7 +4,7 @@ services:
     image: nginx:alpine
     container_name: ${APP_NAME}-nginx
     ports:
-      - "${APP_PORT}:80" # Maps host 8181 -> container 80
+      - "${APP_PORT}:80"
     volumes:
       - ${APP_PATH}:/var/www/html:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
@@ -20,6 +20,8 @@ services:
       context: ./php
       dockerfile: Dockerfile
     container_name: ${APP_NAME}-php
+    environment:
+      - TZ=${SYSTEM_TIMEZONE}
     volumes:
       - ${APP_PATH}:/var/www/html
     networks:
@@ -31,30 +33,30 @@ services:
     image: mariadb:latest
     container_name: ${APP_NAME}-database
     ports:
-      # Changed host side from 3306 to 3307 to avoid XAMPP/Laragon conflicts
       - "127.0.0.1:3307:3306"
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
+      TZ: ${SYSTEM_TIMEZONE}
     volumes:
       - db_data:/var/lib/mysql
     networks:
       - app-network
     restart: always
 
-  # # PostgreSQL Database Service
+  # PostgreSQL Database Service
   # postgres:
   #   image: postgres:latest
   #   container_name: ${APP_NAME}-database
   #   ports:
-  #     # Changed host side from 5432 to 5433 to avoid Laragon conflicts
   #     - "127.0.0.1:5433:5432"
   #   environment:
   #     POSTGRES_DB: ${DB_NAME}
   #     POSTGRES_USER: ${DB_USER}
   #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #     TZ: ${SYSTEM_TIMEZONE}
   #   volumes:
   #     - pg_data:/var/lib/postgresql
   #   networks:
@@ -66,7 +68,7 @@ services:
   #   image: phpmyadmin:latest
   #   container_name: ${APP_NAME}-phpmyadmin
   #   ports:
-  #     - "127.0.0.1:${PHPMYADMIN_PORT}:80" # Maps host 8880 -> container 80
+  #     - "127.0.0.1:${PHPMYADMIN_PORT}:80"
   #   environment:
   #     PMA_HOST: ${APP_NAME}-database
   #     PMA_PORT: 3306 # Internal Docker communication remains 3306
@@ -82,7 +84,7 @@ services:
   #   image: dpage/pgadmin4:latest
   #   container_name: ${APP_NAME}-pgadmin
   #   ports:
-  #     - "127.0.0.1:${PGADMIN_PORT}:80" # Maps host 8881 -> container 80
+  #     - "127.0.0.1:${PGADMIN_PORT}:80"
   #   environment:
   #     PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
   #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}

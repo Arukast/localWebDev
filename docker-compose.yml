@@ -7,9 +7,13 @@ services:
       - "${NGINX_PORT_HTTP}:80"
       - "${NGINX_PORT_PHP82}:8082"
       - "${NGINX_PORT_PHP83}:8083"
+    environment:
+      - TAILSCALE_DOMAIN=${TAILSCALE_DOMAIN}
+      - TAILSCALE_PROJECT_PATH=${TAILSCALE_PROJECT_PATH}
+      - NGINX_ENVSUBST_VARIABLES=\$TAILSCALE_DOMAIN \$TAILSCALE_PROJECT_PATH
     volumes:
       - ${PROJECTS_PATH}:/var/www/html:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/conf.d:/etc/nginx/templates:ro
     depends_on:
       - php82
       - php83
@@ -23,6 +27,8 @@ services:
       context: ./php82
       dockerfile: Dockerfile
     container_name: local-php82
+    environment:
+      - TZ=${SYSTEM_TIMEZONE}
     volumes:
       - ${PROJECTS_PATH}:/var/www/html
     networks:
@@ -35,6 +41,8 @@ services:
       context: ./php83
       dockerfile: Dockerfile
     container_name: local-php83
+    environment:
+      - TZ=${SYSTEM_TIMEZONE}
     volumes:
       - ${PROJECTS_PATH}:/var/www/html
     networks:
@@ -53,6 +61,7 @@ services:
       MYSQL_DATABASE: ${MARIADB_DATABASE}
       MYSQL_USER: ${MARIADB_USER}
       MYSQL_PASSWORD: ${MARIADB_PASSWORD}
+      TZ: ${SYSTEM_TIMEZONE}
     volumes:
       - mariadb_data:/var/lib/mysql
     networks:
@@ -69,6 +78,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${SYSTEM_TIMEZONE}
     volumes:
       - postgres_data:/var/lib/postgresql
     networks:

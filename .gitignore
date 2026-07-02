@@ -4,3 +4,5 @@
 # Ignore all user projects, but keep our diagnostic landing page
 projects/*
 !projects/index.php
+
+repomix-output.xml

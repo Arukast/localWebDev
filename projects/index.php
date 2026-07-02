@@ -1,33 +1,54 @@
 <?php
 // Database connection checks using default settings
-$mariadb_status = 'Pending';
-$mariadb_error = '';
+$mariadb_status = "Pending";
+$mariadb_error = "";
 try {
-    $mysql_conn = new PDO("mysql:host=mariadb;port=3306;dbname=local_db;charset=utf8", "db_user", "db_password", [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_TIMEOUT => 2
-    ]);
-    $mariadb_status = 'Connected';
+    $mysql_conn = new PDO(
+        "mysql:host=mariadb;port=3306;dbname=local_db;charset=utf8",
+        "db_user",
+        "db_password",
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_TIMEOUT => 2,
+        ],
+    );
+    $mariadb_status = "Connected";
 } catch (PDOException $e) {
-    $mariadb_status = 'Failed';
+    $mariadb_status = "Failed";
     $mariadb_error = $e->getMessage();
 }
 
-$postgres_status = 'Pending';
-$postgres_error = '';
+$postgres_status = "Pending";
+$postgres_error = "";
 try {
-    $pg_conn = new PDO("pgsql:host=postgres;port=5432;dbname=local_db;user=db_user;password=db_password", null, null, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_TIMEOUT => 2
-    ]);
-    $postgres_status = 'Connected';
+    $pg_conn = new PDO(
+        "pgsql:host=postgres;port=5432;dbname=local_db;user=db_user;password=db_password",
+        null,
+        null,
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_TIMEOUT => 2,
+        ],
+    );
+    $postgres_status = "Connected";
 } catch (PDOException $e) {
-    $postgres_status = 'Failed';
+    $postgres_status = "Failed";
     $postgres_error = $e->getMessage();
 }
 
 // PHP Extensions check
-$extensions = ['mysqli', 'pdo_mysql', 'pdo_pgsql', 'pgsql', 'gd', 'zip', 'intl', 'Zend OPcache', 'redis'];
+$extensions = [
+    "mysqli",
+    "pdo_mysql",
+    "pdo_pgsql",
+    "pgsql",
+    "gd",
+    "zip",
+    "intl",
+    "Zend OPcache",
+    "redis",
+    "pcntl",
+];
 $ext_status = [];
 foreach ($extensions as $ext) {
     $ext_status[$ext] = extension_loaded($ext);
@@ -39,7 +60,7 @@ $dir = __DIR__;
 if (is_dir($dir)) {
     if ($dh = opendir($dir)) {
         while (($file = readdir($dh)) !== false) {
-            if ($file != '.' && $file != '..' && is_dir($dir . '/' . $file)) {
+            if ($file != "." && $file != ".." && is_dir($dir . "/" . $file)) {
                 $projects[] = $file;
             }
         }
@@ -88,7 +109,7 @@ sort($projects);
             flex-direction: column;
             justify-content: space-between;
             overflow-x: hidden;
-            background-image: 
+            background-image:
                 radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
                 radial-gradient(circle at 90% 80%, rgba(168, 85, 247, 0.05) 0%, transparent 40%);
         }
@@ -489,8 +510,10 @@ sort($projects);
                             DB: local_db<br>
                             User: db_user
                         </div>
-                        <?php if ($mariadb_status === 'Failed'): ?>
-                            <div class="db-error"><?= htmlspecialchars($mariadb_error) ?></div>
+                        <?php if ($mariadb_status === "Failed"): ?>
+                            <div class="db-error"><?= htmlspecialchars(
+                                $mariadb_error,
+                            ) ?></div>
                         <?php endif; ?>
                     </div>
 
@@ -506,8 +529,10 @@ sort($projects);
                             DB: local_db<br>
                             User: db_user
                         </div>
-                        <?php if ($postgres_status === 'Failed'): ?>
-                            <div class="db-error"><?= htmlspecialchars($postgres_error) ?></div>
+                        <?php if ($postgres_status === "Failed"): ?>
+                            <div class="db-error"><?= htmlspecialchars(
+                                $postgres_error,
+                            ) ?></div>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -526,18 +551,37 @@ sort($projects);
                         </div>
                     <?php else: ?>
                         <?php foreach ($projects as $project): ?>
+                            <?php
+                            $projectPath = $dir . "/" . $project;
+                            $hasPublic = is_dir($projectPath . "/public");
+                            $hasRootIndex = is_file(
+                                $projectPath . "/index.php",
+                            );
+                            $usesPublic = $hasPublic && !$hasRootIndex;
+                            $suffix = $usesPublic ? "public/" : "";
+                            ?>
                             <div class="project-item">
-                                <span class="project-name"><?= htmlspecialchars($project) ?></span>
+                                <span class="project-name"><?= htmlspecialchars(
+                                    $project,
+                                ) ?></span>
                                 <div class="project-links">
                                     <div class="link-group">
-                                        <span class="link-group-title">Domain (.test)</span>
-                                        <a href="http://<?= htmlspecialchars($project) ?>.php82.test" class="project-link link-php82" target="_blank">PHP 8.2</a>
-                                        <a href="http://<?= htmlspecialchars($project) ?>.php83.test" class="project-link link-php83" target="_blank">PHP 8.3</a>
+                                        <span class="link-group-title">Open</span>
+                                        <a href="http://localhost:8082/<?= htmlspecialchars(
+                                            $project,
+                                        ) ?>/<?= $suffix ?>" class="project-link link-php82" target="_blank">PHP 8.2</a>
+                                        <a href="http://localhost:8083/<?= htmlspecialchars(
+                                            $project,
+                                        ) ?>/<?= $suffix ?>" class="project-link link-php83" target="_blank">PHP 8.3</a>
                                     </div>
                                     <div class="link-group">
-                                        <span class="link-group-title">Port Fallback</span>
-                                        <a href="http://localhost:8082/<?= htmlspecialchars($project) ?>/" class="project-link link-php82" target="_blank">PHP 8.2</a>
-                                        <a href="http://localhost:8083/<?= htmlspecialchars($project) ?>/" class="project-link link-php83" target="_blank">PHP 8.3</a>
+                                        <span class="link-group-title">Domain (.test)</span>
+                                        <a href="http://<?= htmlspecialchars(
+                                            $project,
+                                        ) ?>.php82.test" class="project-link link-php82" target="_blank">PHP 8.2</a>
+                                        <a href="http://<?= htmlspecialchars(
+                                            $project,
+                                        ) ?>.php83.test" class="project-link link-php83" target="_blank">PHP 8.3</a>
                                     </div>
                                 </div>
                             </div>
@@ -554,8 +598,12 @@ sort($projects);
                 </h2>
                 <div class="extensions-grid">
                     <?php foreach ($ext_status as $ext => $loaded): ?>
-                        <div class="ext-badge <?= $loaded ? 'active' : 'inactive' ?>">
-                            <span class="status-dot" style="width:6px; height:6px; background-color: <?= $loaded ? 'var(--success)' : 'var(--danger)' ?>; border-radius:50%"></span>
+                        <div class="ext-badge <?= $loaded
+                            ? "active"
+                            : "inactive" ?>">
+                            <span class="status-dot" style="width:6px; height:6px; background-color: <?= $loaded
+                                ? "var(--success)"
+                                : "var(--danger)" ?>; border-radius:50%"></span>
                             <?= $ext ?>
                         </div>
                     <?php endforeach; ?>
@@ -589,27 +637,32 @@ sort($projects);
             </div>
 
             <!-- Development Guide -->
+            <!-- Development Guide -->
             <div class="card guide-box">
                 <h2 class="card-title" style="color: #c7d2fe;">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-                    Workflow Guide
+                    Local .test Domains Guide
                 </h2>
                 <div class="guide-step">
-                    <strong>1. Adding a new project:</strong><br>
-                    Create a subfolder in <code>projects/</code> (e.g. <code>my-cool-app/</code>).
+                    <strong>1. Match Your Folder Name:</strong><br>
+                    Nginx automatically looks for a folder inside your <code>projects/</code> directory that matches your URL. For a folder named <code>my-laravel-app</code>, your domain is:<br>
+                    <span style="color: var(--primary);">my-laravel-app.php82.test</span> or <span style="color: var(--accent);">my-laravel-app.php83.test</span>
                 </div>
                 <div class="guide-step">
-                    <strong>2. Accessing your app:</strong><br>
-                    - Via ports (no hosts config):<br>
-                    PHP 8.2: <a href="http://localhost:8082/my-cool-app/" target="_blank" style="color: var(--primary);">localhost:8082/my-cool-app/</a><br>
-                    PHP 8.3: <a href="http://localhost:8083/my-cool-app/" target="_blank" style="color: var(--accent);">localhost:8083/my-cool-app/</a><br>
-                    - Via domains (needs <code>/etc/hosts</code>):<br>
-                    PHP 8.2: <code>http://my-cool-app.php82.test</code><br>
-                    PHP 8.3: <code>http://my-cool-app.php83.test</code>
+                    <strong>2. Update Your Hosts File:</strong><br>
+                    Tell your OS to route the domain locally by adding this line to your hosts file:
+                    <div class="code-snippet">127.0.0.1 my-laravel-app.php82.test my-laravel-app.php83.test</div>
                 </div>
                 <div class="guide-step">
-                    <strong>3. Mapping Domains (/etc/hosts):</strong>
-                    <div class="code-snippet">127.0.0.1 my-cool-app.php82.test my-cool-app.php83.test</div>
+                    <strong style="font-size: 0.8rem; color: var(--text-muted);">🖥️ Windows Location:</strong>
+                    <div class="code-snippet" style="background: rgba(0,0,0,0.15);">C:\Windows\System32\drivers\etc\hosts</div>
+                    <strong style="font-size: 0.8rem; color: var(--text-muted);">🍎 macOS / 🐧 Linux Location:</strong>
+                    <div class="code-snippet" style="background: rgba(0,0,0,0.15);">sudo nano /etc/hosts</div>
+                </div>
+                <div class="guide-step">
+                    <strong>3. Framework Ready:</strong><br>
+                    Nginx automatically detects the <code>public/</code> folder for Laravel apps. You can access deep paths directly via standard port 80:<br>
+                    <br><a href="#" style="color: #a7f3d0; text-decoration: none;">http://my-laravel-app.php83.test/dashboard</a>
                 </div>
             </div>
         </div>
@@ -620,13 +673,34 @@ sort($projects);
     </footer>
 
     <script>
-        // Dynamically adjust URLs if accessing via host IP instead of localhost
-        const host = window.location.hostname;
-        if (host !== 'localhost') {
-            document.querySelectorAll('.tool-item').forEach(item => {
-                const url = new URL(item.href);
-                url.hostname = host;
-                item.href = url.toString();
+        // Dynamically adjust URLs based on how you access the dashboard
+        const currentHost = window.location.hostname;
+        const currentProtocol = window.location.protocol;
+
+        if (currentHost !== 'localhost' && !currentHost.endsWith('.test')) {
+            document.querySelectorAll('.tool-item, .project-link').forEach(item => {
+                try {
+                    const url = new URL(item.href);
+
+                    // If accessing via Tailscale Funnel
+                    if (currentHost.endsWith('.ts.net')) {
+                        // Change protocol to match (https)
+                        url.protocol = currentProtocol;
+                        // Point to the funnel domain
+                        url.hostname = currentHost;
+
+                        // Strip the local port numbers since Tailscale routes everything via standard ports
+                        url.port = '';
+                    } else {
+                        // Fallback for LAN IP access (e.g. 192.168.x.x)
+                        if (url.hostname === 'localhost') {
+                            url.hostname = currentHost;
+                        }
+                    }
+                    item.href = url.toString();
+                } catch (e) {
+                    console.error(e);
+                }
             });
         }
     </script>
