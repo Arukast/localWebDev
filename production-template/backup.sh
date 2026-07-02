@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# === Database Restore Instructions for Host Machine ===
+# Since we changed host ports to avoid conflicts with XAMPP/Laragon,
+# if you restore from your host terminal using a native client, use these ports:
+#
+# For MariaDB (Host Port 3307):
+# mysql -h 127.0.0.1 -P 3307 -u root -pYOUR_ROOT_PASSWORD app_db < backup.sql
+#
+# For PostgreSQL (Host Port 5433):
+# psql -h 127.0.0.1 -p 5433 -U db_user -d app_db < backup.sql
+
 # Configuration
 BACKUP_DIR="./backups"
 mkdir -p "$BACKUP_DIR"
@@ -33,11 +43,11 @@ docker exec "$APP_NAME-database" mariadb-dump -u root -p"$DB_ROOT_PASSWORD" "$DB
 # Check if the backup command succeeded
 if [ $? -eq 0 ]; then
     echo "Success: Backup file created at $BACKUP_FILE"
-    
+
     # Compress the SQL backup to save disk space
     gzip "$BACKUP_FILE"
     echo "Compressed backup file: ${BACKUP_FILE}.gz"
-    
+
     # Keep only the last 30 days of backups to prevent running out of disk space
     echo "Cleaning up backups older than 30 days..."
     find "$BACKUP_DIR" -name "pos_db_backup_*.sql.gz" -mtime +30 -delete
