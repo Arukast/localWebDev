@@ -60,6 +60,104 @@ create_db_if_not_exists() {
     fi
 }
 
+# Setup local DNS resolution (*.test)
+setup_dns() {
+    echo "🌐 Setting up local DNS resolution for *.test domains..."
+    
+    local os="$(uname -s)"
+    
+    if [[ "$os" == "Linux" ]]; then
+        if systemctl is-active --quiet systemd-resolved 2>/dev/null || systemctl is-enabled --quiet systemd-resolved 2>/dev/null; then
+            echo "🔧 Configuring systemd-resolved for *.test domains..."
+            sudo mkdir -p /etc/systemd/resolved.conf.d
+            cat <<EOF | sudo tee /etc/systemd/resolved.conf.d/localdev.conf > /dev/null
+[Resolve]
+DNS=127.0.0.1:5353
+Domains=~test
+EOF
+            echo "🔄 Restarting systemd-resolved service..."
+            sudo systemctl restart systemd-resolved
+            echo "✅ systemd-resolved configured successfully for *.test domains!"
+        elif [[ -d /etc/NetworkManager/conf.d ]]; then
+            echo "🔧 Configuring NetworkManager dnsmasq plugin for *.test domains..."
+            echo -e "[main]\ndns=dnsmasq" | sudo tee /etc/NetworkManager/conf.d/00-use-dnsmasq.conf > /dev/null
+            sudo mkdir -p /etc/NetworkManager/dnsmasq.d
+            echo "server=/test/127.0.0.1#5353" | sudo tee /etc/NetworkManager/dnsmasq.d/localdev.conf > /dev/null
+            sudo systemctl restart NetworkManager
+            echo "✅ NetworkManager configured successfully!"
+        else
+            echo "⚠️ Could not auto-detect systemd-resolved or NetworkManager."
+            echo "💡 Please add 'nameserver 127.0.0.1' or point port 5353 in your resolver configuration."
+        fi
+    elif [[ "$os" == "Darwin" ]]; then
+        echo "🔧 Configuring macOS resolver for *.test domains..."
+        sudo mkdir -p /etc/resolver
+        cat <<EOF | sudo tee /etc/resolver/test > /dev/null
+nameserver 127.0.0.1
+port 5353
+EOF
+        echo "✅ macOS resolver created at /etc/resolver/test!"
+    else
+        echo "ℹ️ On Windows/WSL2, ensure local-dnsmasq container is running and route *.test requests to 127.0.0.1."
+    fi
+
+    echo ""
+    check_dns_status
+}
+
+# Test local DNS resolution status
+check_dns_status() {
+    echo "🔍 Checking *.test DNS resolution status..."
+    local test_domain="localdev-test.test"
+    local resolved_ip=""
+
+    if command -v dig &>/dev/null; then
+        resolved_ip="$(dig +short @127.0.0.1 -p 5353 "$test_domain" 2>/dev/null | tail -n1)"
+    elif command -v nslookup &>/dev/null; then
+        resolved_ip="$(nslookup -port=5353 "$test_domain" 127.0.0.1 2>/dev/null | grep -A1 "Name:" | grep "Address:" | awk '{print $2}')"
+    fi
+
+    if [[ "$resolved_ip" == "127.0.0.1" ]]; then
+        echo "✅ Dnsmasq container (127.0.0.1:5353) is resolving *.test domains correctly to 127.0.0.1"
+    else
+        echo "⚠️ Direct query to Dnsmasq container (127.0.0.1:5353) returned: '${resolved_ip:-no response}'"
+        echo "💡 Make sure containers are started with './dev up'."
+    fi
+
+    if command -v ping &>/dev/null; then
+        if ping -c 1 -W 1 "$test_domain" &>/dev/null; then
+            echo "✅ Host OS resolver successfully resolves *.test domains!"
+        else
+            echo "ℹ️ Host OS ping test to $test_domain did not resolve. Run './dev dns setup' to configure host DNS."
+        fi
+    fi
+}
+
+# Remove local DNS setup
+teardown_dns() {
+    echo "🧹 Cleaning up local DNS configurations..."
+    local os="$(uname -s)"
+
+    if [[ "$os" == "Linux" ]]; then
+        if [[ -f /etc/systemd/resolved.conf.d/localdev.conf ]]; then
+            sudo rm -f /etc/systemd/resolved.conf.d/localdev.conf
+            sudo systemctl restart systemd-resolved 2>/dev/null || true
+            echo "✅ Removed /etc/systemd/resolved.conf.d/localdev.conf"
+        fi
+        if [[ -f /etc/NetworkManager/dnsmasq.d/localdev.conf ]]; then
+            sudo rm -f /etc/NetworkManager/dnsmasq.d/localdev.conf
+            sudo systemctl restart NetworkManager 2>/dev/null || true
+            echo "✅ Removed /etc/NetworkManager/dnsmasq.d/localdev.conf"
+        fi
+    elif [[ "$os" == "Darwin" ]]; then
+        if [[ -f /etc/resolver/test ]]; then
+            sudo rm -f /etc/resolver/test
+            echo "✅ Removed /etc/resolver/test"
+        fi
+    fi
+    echo "✨ Teardown complete."
+}
+
 show_help() {
     echo "=========================================="
     echo " 🚀 localDev CLI Helper"
@@ -73,6 +171,7 @@ show_help() {
     echo "  logs [-f] [service]     View container logs"
     echo "  status / ps             View running containers status"
     echo "  ssl                     Generate or renew SSL certs (*.test)"
+    echo "  dns [setup|status|teardown] Configure or test automatic *.test DNS resolution"
     echo ""
     echo "Project Management:"
     echo "  new <name> [options]    Scaffold new project (--type=laravel|wordpress|blank, --php=8.3|8.2, --db=mariadb|postgres)"
@@ -122,6 +221,24 @@ case "$1" in
 
     ssl)
         generate_ssl
+        ;;
+
+    dns)
+        shift
+        case "$1" in
+            setup)
+                setup_dns
+                ;;
+            status)
+                check_dns_status
+                ;;
+            teardown|uninstall|remove)
+                teardown_dns
+                ;;
+            *)
+                echo "Usage: ./dev dns [setup|status|teardown]"
+                ;;
+        esac
         ;;
 
     new)
@@ -441,6 +558,7 @@ _dev() {
         'status:View running containers status'
         'ps:View running containers status'
         'ssl:Generate SSL certs'
+        'dns:Configure or test *.test DNS resolution'
         'new:Scaffold new project'
         'list:List local projects'
         'composer:Run Composer inside container'
@@ -467,6 +585,7 @@ complete -c dev -n "__fish_use_subcommand" -a "logs" -d "View container logs"
 complete -c dev -n "__fish_use_subcommand" -a "status" -d "View running containers status"
 complete -c dev -n "__fish_use_subcommand" -a "ps" -d "View running containers status"
 complete -c dev -n "__fish_use_subcommand" -a "ssl" -d "Generate or renew SSL certs"
+complete -c dev -n "__fish_use_subcommand" -a "dns" -d "Configure or test *.test DNS resolution"
 complete -c dev -n "__fish_use_subcommand" -a "new" -d "Scaffold new project"
 complete -c dev -n "__fish_use_subcommand" -a "list" -d "List local projects"
 complete -c dev -n "__fish_use_subcommand" -a "composer" -d "Run Composer inside container"
@@ -486,7 +605,7 @@ _dev_completion() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="up down restart logs status ps ssl new list composer artisan php npm npx node db help completion"
+    opts="up down restart logs status ps ssl dns new list composer artisan php npm npx node db help completion"
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )

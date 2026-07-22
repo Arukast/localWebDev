@@ -31,6 +31,7 @@ The environment includes a unified `./dev` executable script to simplify daily d
 | `./dev status` | Display status of running containers |
 | `./dev logs [-f] [service]` | View log output |
 | `./dev ssl` | Generate or renew local wildcard SSL certificates (`*.test`) |
+| `./dev dns [setup\|status\|teardown]` | Configure automatic cross-platform local DNS resolution for `*.test` domains |
 | `./dev new <name> [options]` | Scaffold new project (`--type=laravel\|wordpress\|blank`, `--php=8.3\|8.2`, `--db=mariadb\|postgres`) |
 | `./dev list` | List all local projects with their HTTPS domain links and port fallbacks |
 | `./dev composer [8.2\|8.3] <args>` | Execute Composer inside PHP container (auto-detects project folder) |
@@ -78,6 +79,23 @@ The environment supports zero-configuration HTTPS for your local custom domains 
    ```bash
    mkcert -install
    ./dev ssl
+   ```
+
+---
+
+## 🌐 Automatic Wildcard Local DNS (`*.test`)
+
+`localDev` includes an integrated `dnsmasq` container service that routes all `*.test` wildcard domains to `127.0.0.1` without needing to modify `/etc/hosts` for every new project.
+
+1. **One-Time Host Configuration**:
+   ```bash
+   ./dev dns setup
+   ```
+   *Automatically configures your host OS resolver (`systemd-resolved` / NetworkManager on Linux, `/etc/resolver/test` on macOS).*
+
+2. **Verify DNS Status**:
+   ```bash
+   ./dev dns status
    ```
 
 ---

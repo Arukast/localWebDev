@@ -1,4 +1,16 @@
-services:
+  # Dnsmasq (Local DNS resolver for *.test domains)
+  dnsmasq:
+    build:
+      context: ./dnsmasq
+      dockerfile: Dockerfile
+    container_name: local-dnsmasq
+    ports:
+      - "127.0.0.1:${DNSMASQ_PORT:-5353}:53/udp"
+      - "127.0.0.1:${DNSMASQ_PORT:-5353}:53/tcp"
+    networks:
+      - local-network
+    restart: unless-stopped
+
   # Nginx Reverse Proxy
   nginx:
     image: nginx:alpine
