@@ -96,6 +96,12 @@ If you have local database clients installed (like `mysql` or `psql`), you can c
 
 Your project files live inside the `projects/` directory.
 
+### ⚡ Smart Framework & Laravel Detection
+Nginx automatically detects **Laravel** and other modern frameworks by checking for `artisan` or `public/index.php`:
+* **Automatic Document Root**: For Laravel projects (`projects/my-laravel-app/`), Nginx automatically routes requests to `projects/my-laravel-app/public/`.
+* **Static Assets & Storage Symlinks**: Build assets (`/build/assets/...`), CSS, JS, images, and `storage` symlinks (`storage/app/public`) are automatically checked and served directly as static files in both domain and subfolder modes.
+* **Plain PHP Fallback**: Non-Laravel projects with a root `index.php` continue to run seamlessly from the project root.
+
 ### 1. Default Directory-based Routing (Port Fallback)
 If you create a folder named `my-app` inside `projects/` (`projects/my-app/`):
 *   Run on **PHP 8.2**: [http://localhost:8082/my-app/](http://localhost:8082/my-app/)
@@ -111,6 +117,7 @@ Now, they will resolve automatically:
 *   [http://my-app.php83.test](http://my-app.php83.test) (Executes via PHP 8.3)
 
 ---
+
 
 ## 🔌 Stopping and Managing Services
 
@@ -133,3 +140,26 @@ Now, they will resolve automatically:
     ```bash
     docker compose build --no-cache
     ```
+
+---
+
+## 🔍 Troubleshooting
+
+### 1. Case-Sensitive Project Names (404/500 Errors)
+Linux and Docker are case-sensitive. If a project folder contains uppercase letters (e.g. `projects/MikroLink`), Nginx routing will fail when trying to access it via lowercased domains/URLs (e.g. `http://mikrolink.php83.test`).
+* **Fix:** Use lowercase names for your project directories (e.g., rename `projects/MikroLink` to `projects/mikrolink`).
+
+### 2. Laravel Directory Permissions (`tempnam()` Error)
+If you get `tempnam(): file created in the system's temporary directory` or `ErrorException` while Laravel is trying to write to the `storage/` or `bootstrap/cache/` directories:
+* **Fix:** From the workspace root directory, make the storage and cache folders fully writable:
+  ```bash
+  chmod -R 777 projects/your-project-name/storage projects/your-project-name/bootstrap/cache
+  ```
+
+### 3. Database Connection Issues (`SQLSTATE[HY000] [2002] No such file or directory`)
+When running database tasks or migrations (like `php artisan migrate`) from inside Docker or connecting the app to the database:
+* **Fix:** In your project's `.env` file, ensure `DB_HOST` is set to the name of the database container service (**`mariadb`** or **`postgres`**) instead of `localhost` or `127.0.0.1`:
+  ```env
+  DB_HOST=mariadb
+  ```
+

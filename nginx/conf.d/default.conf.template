@@ -5,14 +5,23 @@ server {
     listen 80;
     server_name ~^(?<project>.+)\.php82\.test$;
 
-    # Default to public if it exists, fallback to project root
+    # Default to project root
     set $project_root /var/www/html/$project;
+
+    # Smart Laravel / Framework project detection
     if (-d /var/www/html/$project/public) {
+        set $project_root /var/www/html/$project/public;
+    }
+    if (-f /var/www/html/$project/artisan) {
         set $project_root /var/www/html/$project/public;
     }
     if (-f /var/www/html/$project/index.php) {
         set $project_root /var/www/html/$project;
     }
+    if (-f /var/www/html/$project/artisan) {
+        set $project_root /var/www/html/$project/public;
+    }
+
     root $project_root;
 
     index index.php index.html;
@@ -42,13 +51,23 @@ server {
     listen 80;
     server_name ~^(?<project>.+)\.php83\.test$;
 
+    # Default to project root
     set $project_root /var/www/html/$project;
+
+    # Smart Laravel / Framework project detection
     if (-d /var/www/html/$project/public) {
+        set $project_root /var/www/html/$project/public;
+    }
+    if (-f /var/www/html/$project/artisan) {
         set $project_root /var/www/html/$project/public;
     }
     if (-f /var/www/html/$project/index.php) {
         set $project_root /var/www/html/$project;
     }
+    if (-f /var/www/html/$project/artisan) {
+        set $project_root /var/www/html/$project/public;
+    }
+
     root $project_root;
 
     index index.php index.html;
@@ -81,19 +100,34 @@ server {
     index index.php index.html;
     charset utf-8;
 
-    # 2. Subfolder project routing logic
+    # Subfolder project routing logic
     location / {
+        set $project_name "";
+        set $subpath "";
+
         if ($uri ~ ^/([^/]+)(/.*)?$) {
             set $project_name $1;
+            set $subpath $2;
         }
 
-        # Route through public/ only for framework apps (no root index.php)
+        # 1. Static asset check under public/ (Vite build assets, storage symlinks, CSS/JS/images)
+        if (-f /var/www/html/$project_name/public$subpath) {
+            rewrite ^/([^/]+)(/.*)?$ /$1/public$2 last;
+        }
+
+        # 2. Framework detection (Laravel artisan or public/index.php)
         set $use_public "0";
         if (-d /var/www/html/$project_name/public) {
             set $use_public "1";
         }
+        if (-f /var/www/html/$project_name/artisan) {
+            set $use_public "1";
+        }
         if (-f /var/www/html/$project_name/index.php) {
             set $use_public "0";
+        }
+        if (-f /var/www/html/$project_name/artisan) {
+            set $use_public "1";
         }
 
         if ($use_public = "1") {
@@ -103,7 +137,7 @@ server {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
-    # 3. Global execution block for all PHP processes
+    # Global execution block for all PHP processes
     location ~ \.php$ {
         fastcgi_pass php82:9000;
         fastcgi_index index.php;
@@ -126,19 +160,34 @@ server {
     index index.php index.html;
     charset utf-8;
 
-    # 2. Subfolder project routing logic
+    # Subfolder project routing logic
     location / {
+        set $project_name "";
+        set $subpath "";
+
         if ($uri ~ ^/([^/]+)(/.*)?$) {
             set $project_name $1;
+            set $subpath $2;
         }
 
-        # Route through public/ only for framework apps (no root index.php)
+        # 1. Static asset check under public/ (Vite build assets, storage symlinks, CSS/JS/images)
+        if (-f /var/www/html/$project_name/public$subpath) {
+            rewrite ^/([^/]+)(/.*)?$ /$1/public$2 last;
+        }
+
+        # 2. Framework detection (Laravel artisan or public/index.php)
         set $use_public "0";
         if (-d /var/www/html/$project_name/public) {
             set $use_public "1";
         }
+        if (-f /var/www/html/$project_name/artisan) {
+            set $use_public "1";
+        }
         if (-f /var/www/html/$project_name/index.php) {
             set $use_public "0";
+        }
+        if (-f /var/www/html/$project_name/artisan) {
+            set $use_public "1";
         }
 
         if ($use_public = "1") {
@@ -148,7 +197,7 @@ server {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
-    # 3. Global execution block for all PHP processes
+    # Global execution block for all PHP processes
     location ~ \.php$ {
         fastcgi_pass php83:9000;
         fastcgi_index index.php;
@@ -168,7 +217,22 @@ server {
     listen 8083;
     server_name ${TAILSCALE_DOMAIN};
 
-    root /var/www/html/${TAILSCALE_PROJECT_PATH};
+    # Auto-detect Laravel public root or user specified path
+    set $tailscale_root /var/www/html/${TAILSCALE_PROJECT_PATH};
+    if (-d /var/www/html/${TAILSCALE_PROJECT_PATH}/public) {
+        set $tailscale_root /var/www/html/${TAILSCALE_PROJECT_PATH}/public;
+    }
+    if (-f /var/www/html/${TAILSCALE_PROJECT_PATH}/artisan) {
+        set $tailscale_root /var/www/html/${TAILSCALE_PROJECT_PATH}/public;
+    }
+    if (-f /var/www/html/${TAILSCALE_PROJECT_PATH}/index.php) {
+        set $tailscale_root /var/www/html/${TAILSCALE_PROJECT_PATH};
+    }
+    if (-f /var/www/html/${TAILSCALE_PROJECT_PATH}/artisan) {
+        set $tailscale_root /var/www/html/${TAILSCALE_PROJECT_PATH}/public;
+    }
+
+    root $tailscale_root;
     index index.php index.html;
     charset utf-8;
 
@@ -187,3 +251,4 @@ server {
     location = /robots.txt  { access_log off; log_not_found off; }
     location ~ /\.(?!well-known).* { deny all; }
 }
+
