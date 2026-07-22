@@ -14,15 +14,15 @@ production-system/
 ├── app/                  <-- Put your PHP code files here (index.php, public/, etc.)
 ├── backups/              <-- Database backups (.sql.gz & .sha256) will automatically save here
 ├── nginx/
-│   ├── certs/            <-- Place SSL certificates here (server.crt, server.key)
 │   └── templates/
-│       └── default.conf.template  <-- Nginx virtual host template with ${NGINX_WEB_ROOT} support
+│       └── default.conf.template  <-- Nginx virtual host template with SSL, Gzip, and ${NGINX_WEB_ROOT} support
 ├── php/
 │   ├── Dockerfile        <-- Minimal Alpine PHP 8.3 FPM image with Composer 2 & non-root user
 │   └── php.ini           <-- Secure production PHP settings & OPcache tuning
-├── .env                  <-- Port, web root, and DB passwords (ignored by Git)
-├── backup.sh             <-- Backup automation script with SHA256 integrity generation
+├── .env                  <-- Port, web root, domain, and DB passwords (ignored by Git)
+├── backup.sh             <-- Backup automation script with SHA256 integrity & optional S3 upload
 ├── restore.sh            <-- Interactive database restore script with SHA256 checksum verification
+├── init-ssl.sh           <-- Automated Let's Encrypt SSL/TLS certificate bootstrap script
 └── docker-compose.yml    <-- Service orchestrator with healthchecks, log rotation, & memory limits
 ```
 
@@ -33,15 +33,18 @@ production-system/
 1. **Copy the folder** to your target computer (e.g., to `/home/user/production-system/`).
 2. **Move your PHP code** into the `app/` subdirectory (so `app/index.php` or `app/public/index.php` is in place).
 3. **Configure Settings**:
-   Copy `.env.example` to `.env` and edit your passwords and configurations:
+   Copy `.env.example` to `.env` and edit your domain, passwords, and configurations:
    ```ini
    APP_NAME=my-app
+   DOMAIN_NAME=app.yourdomain.com
+   CERTBOT_EMAIL=admin@yourdomain.com
    # Document Root: set /var/www/html for standard flat PHP, or /var/www/html/public for Laravel/Symfony
    NGINX_WEB_ROOT=/var/www/html
    DB_ROOT_PASSWORD=strong_production_root_password
    DB_NAME=app_production_db
    DB_USER=app_production_user
    DB_PASSWORD=strong_production_user_password
+   REDIS_PASSWORD=strong_redis_production_password
    ```
 4. **Boot up the containers**:
    Run the following command in the terminal:
@@ -50,46 +53,42 @@ production-system/
    ```
 5. **Access the Application**:
    Open the browser on the computer and navigate to:
-   * `http://localhost:8181` (or your configured `APP_PORT`).
+   * `http://localhost` (or `https://app.yourdomain.com`).
+
+---
+
+## 🔒 Automated SSL / HTTPS Configuration (Let's Encrypt)
+
+The production template includes automated Let's Encrypt SSL/TLS certificate provisioning and renewal:
+
+1. **Configure Domain & Email in `.env`**:
+   Ensure `DOMAIN_NAME` (e.g. `app.yourdomain.com`) and `CERTBOT_EMAIL` (e.g. `admin@yourdomain.com`) are configured in `.env`.
+
+2. **Initialize Certificates**:
+   Run the automated SSL bootstrapper:
+   ```bash
+   ./init-ssl.sh
+   ```
+   *To test certificate acquisition without hitting Let's Encrypt rate limits, pass `--staging`:*
+   ```bash
+   ./init-ssl.sh --staging
+   ```
+
+3. **Automatic Renewal**:
+   The `certbot` container service automatically runs in the background and attempts to renew certificates every 12 hours.
 
 ---
 
 ## 🔒 Security & Performance Hardening
 
+* **Automated HTTPS & HSTS**: Enforces Strict-Transport-Security (`HSTS`) headers and redirects all HTTP traffic (port 80) to secure HTTPS (port 443).
+* **Nginx Gzip Compression**: Gzip compression is enabled for text, CSS, JavaScript, JSON, XML, and SVG assets to accelerate asset loading.
 * **Non-Root Runtime Execution**: The PHP-FPM container executes processes under the `www-data` non-root user account to mitigate container breakout risks.
+* **Redis Password Protection**: Redis authentication is enforced using `${REDIS_PASSWORD}` when the Redis service is enabled.
 * **Dynamic Web Root Support**: Set `NGINX_WEB_ROOT=/var/www/html/public` in `.env` when deploying frameworks like Laravel or Symfony to prevent exposing root application files.
 * **Log Rotation Safeguards**: All containers use Docker's `json-file` logging driver with `max-size: 10m` and `max-file: 3` to prevent log files from exhausting host storage.
 * **Resource Limits**: Every container is bounded with strict memory constraints (e.g. PHP 512MB, MariaDB 1024MB, Nginx 256MB) to ensure system stability.
 * **Composer 2 Integration**: Composer 2 is built into the PHP FPM container, allowing you to manage packages or run `docker compose exec php composer install`.
-
----
-
-## 🔒 HTTPS / SSL Configuration (Optional)
-
-To enable SSL / HTTPS:
-
-1. **Place SSL Certificate Files**:
-   Copy your SSL certificate and private key into `nginx/certs/`:
-   - `nginx/certs/server.crt`
-   - `nginx/certs/server.key`
-
-2. **Enable Port 443 & Volume in `docker-compose.yml`**:
-   Uncomment the SSL port and volume mapping under `nginx`:
-   ```yaml
-   ports:
-     - "${APP_PORT}:80"
-     - "${APP_SSL_PORT:-443}:443"
-   volumes:
-     - ./nginx/certs:/etc/nginx/certs:ro
-   ```
-
-3. **Enable SSL Block in `nginx/templates/default.conf.template`**:
-   Uncomment the `server { listen 443 ssl http2; ... }` configuration block at the bottom of `default.conf.template`.
-
-4. **Restart Stack**:
-   ```bash
-   sudo docker compose restart nginx
-   ```
 
 ---
 
@@ -113,7 +112,9 @@ If your application requires Redis caching or session storage:
 
 1. **In `docker-compose.yml`**:
    * Uncomment the `redis` service block.
-2. **Restart the Stack**:
+2. **In `.env`**:
+   * Ensure `REDIS_PASSWORD` is configured.
+3. **Restart the Stack**:
    * Run `sudo docker compose up -d`.
 
 ---
@@ -132,10 +133,10 @@ By default, database administration web interfaces are disabled for security and
 
 ---
 
-## 💾 Database Operations & Checksum Integrity
+## 💾 Database Operations & Offsite S3 Storage
 
-### 1. Manual Backup
-To run a manual database backup at any time:
+### 1. Manual Backup & S3 Upload
+To run a database backup at any time:
 ```bash
 ./backup.sh
 ```
@@ -144,6 +145,7 @@ This will generate:
 - A SHA256 checksum file: `${APP_NAME}_db_backup_YYYYMMDD_HHMMSS.sql.gz.sha256`
 - Secure file permissions (`chmod 600`)
 - Auto-prune backups and checksum files older than 30 days.
+- **Optional S3 Offsite Storage**: If `S3_BUCKET` is configured in `.env` and `aws` CLI is installed, `backup.sh` will automatically upload the backup and checksum file to your remote S3 object storage bucket.
 
 ### 2. Interactive Database Restore
 To restore a database from an existing backup:
@@ -174,3 +176,4 @@ To automate backups so they run every evening at **10:00 PM**, set up a Linux `c
    0 22 * * * cd /home/user/production-system && ./backup.sh >> backups/backup.log 2>&1
    ```
 3. Save and close. The system will now back up the database every night and log activity to `backups/backup.log`.
+

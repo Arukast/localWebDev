@@ -4,14 +4,15 @@ services:
     image: nginx:alpine
     container_name: ${APP_NAME}-nginx
     ports:
-      - "${APP_PORT}:80"
-      # - "${APP_SSL_PORT:-443}:443"
+      - "${APP_PORT:-80}:80"
+      - "${APP_SSL_PORT:-443}:443"
     environment:
       NGINX_WEB_ROOT: ${NGINX_WEB_ROOT:-/var/www/html}
     volumes:
       - ${APP_PATH}:/var/www/html:ro
       - ./nginx/templates:/etc/nginx/templates:ro
-      # - ./nginx/certs:/etc/nginx/certs:ro
+      - certbot_data:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
     depends_on:
       php:
         condition: service_healthy
@@ -93,6 +94,18 @@ services:
       - app-network
     restart: always
 
+  # Certbot SSL Renewal Service
+  certbot:
+    image: certbot/certbot:latest
+    container_name: ${APP_NAME}-certbot
+    volumes:
+      - certbot_data:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - app-network
+    restart: always
+
   # PostgreSQL Database Service (Optional)
   # postgres:
   #   image: postgres:latest
@@ -128,10 +141,11 @@ services:
   # redis:
   #   image: redis:alpine
   #   container_name: ${APP_NAME}-redis
+  #   command: redis-server --requirepass "${REDIS_PASSWORD}"
   #   ports:
   #     - "127.0.0.1:${REDIS_PORT:-6379}:6379"
   #   healthcheck:
-  #     test: ["CMD", "redis-cli", "ping"]
+  #     test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
   #     interval: 10s
   #     timeout: 5s
   #     retries: 3
@@ -210,7 +224,12 @@ networks:
 volumes:
   db_data:
     name: ${APP_NAME}-db-data
+  certbot_data:
+    name: ${APP_NAME}-certbot-data
+  certbot_www:
+    name: ${APP_NAME}-certbot-www
   # pg_data:
   #   name: ${APP_NAME}-pg-data
   # pgadmin_data:
   #   name: ${APP_NAME}-pgadmin-data
+

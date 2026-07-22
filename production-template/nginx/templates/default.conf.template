@@ -1,13 +1,47 @@
+# Enable Gzip Compression for Performance
+gzip on;
+gzip_disable "msie6";
+gzip_vary on;
+gzip_proxied any;
+gzip_comp_level 6;
+gzip_types text/plain text/css text/xml application/json application/javascript application/rss+xml application/atom+xml image/svg+xml;
+
+# HTTP Server (Port 80) - ACME Challenge & HTTPS Redirect
 server {
     listen 80;
-    server_name _;
+    server_name ${DOMAIN_NAME:-_};
+
+    client_max_body_size 50M;
+
+    # Certbot ACME HTTP-01 challenge handler
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    # Redirect all other HTTP traffic to HTTPS
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# HTTPS Server (Port 443) - Main Production Server
+server {
+    listen 443 ssl http2;
+    server_name ${DOMAIN_NAME:-_};
+
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN_NAME:-localhost}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME:-localhost}/privkey.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
 
     root ${NGINX_WEB_ROOT};
     index index.php index.html index.htm;
 
     charset utf-8;
-
-    # Optimize request body limits
     client_max_body_size 50M;
 
     # Production Security Headers
@@ -15,6 +49,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
     location / {
         try_files $uri $uri/ /index.php?$query_string;
@@ -23,7 +58,7 @@ server {
     location = /favicon.ico { access_log off; log_not_found off; }
     location = /robots.txt  { access_log off; log_not_found off; }
 
-    # Disable logging for static assets to reduce disk writes
+    # Disable logging for static assets & set cache headers
     location ~* \.(jpg|jpeg|gif|png|css|js|ico|xml|woff|woff2|ttf|svg)$ {
         access_log off;
         log_not_found off;
@@ -38,45 +73,9 @@ server {
         include fastcgi_params;
     }
 
-    # Block access to sensitive system files (.env, .git, etc.)
+    # Block access to sensitive hidden system files (.env, .git, etc.)
     location ~ /\.(?!well-known).* {
         deny all;
     }
 }
 
-# SSL / HTTPS Configuration (Uncomment to enable HTTPS)
-# server {
-#     listen 443 ssl http2;
-#     server_name _;
-#
-#     ssl_certificate /etc/nginx/certs/server.crt;
-#     ssl_certificate_key /etc/nginx/certs/server.key;
-#     ssl_protocols TLSv1.2 TLSv1.3;
-#     ssl_ciphers HIGH:!aNULL:!MD5;
-#
-#     root ${NGINX_WEB_ROOT};
-#     index index.php index.html index.htm;
-#
-#     charset utf-8;
-#     client_max_body_size 50M;
-#
-#     add_header X-Frame-Options "SAMEORIGIN" always;
-#     add_header X-Content-Type-Options "nosniff" always;
-#     add_header X-XSS-Protection "1; mode=block" always;
-#     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-#
-#     location / {
-#         try_files $uri $uri/ /index.php?$query_string;
-#     }
-#
-#     location ~ \.php$ {
-#         fastcgi_pass php:9000;
-#         fastcgi_index index.php;
-#         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-#         include fastcgi_params;
-#     }
-#
-#     location ~ /\.(?!well-known).* {
-#         deny all;
-#     }
-# }

@@ -62,6 +62,26 @@ if [ -f "$BACKUP_FILE" ] && [ -s "$BACKUP_FILE" ]; then
     find "$BACKUP_DIR" -name "${APP_NAME}_db_backup_*.sql.gz" -mtime +30 -delete
     find "$BACKUP_DIR" -name "${APP_NAME}_db_backup_*.sql.gz.sha256" -mtime +30 -delete
     echo "Cleanup finished."
+
+    # Optional Offsite S3 Storage Upload
+    if [ -n "${S3_BUCKET:-}" ]; then
+        echo "Uploading backup to S3 bucket: $S3_BUCKET..."
+        S3_ENDPOINT_FLAG=""
+        if [ -n "${S3_ENDPOINT:-}" ]; then
+            S3_ENDPOINT_FLAG="--endpoint-url $S3_ENDPOINT"
+        fi
+        if command -v aws >/dev/null 2>&1; then
+            # shellcheck disable=SC2086
+            aws s3 cp "$COMPRESSED_FILE" "s3://$S3_BUCKET/backups/$(basename "$COMPRESSED_FILE")" $S3_ENDPOINT_FLAG
+            if [ -f "${COMPRESSED_FILE}.sha256" ]; then
+                # shellcheck disable=SC2086
+                aws s3 cp "${COMPRESSED_FILE}.sha256" "s3://$S3_BUCKET/backups/$(basename "$COMPRESSED_FILE").sha256" $S3_ENDPOINT_FLAG
+            fi
+            echo "Successfully uploaded backup to S3 offsite storage."
+        else
+            echo "Warning: S3_BUCKET is configured but 'aws' CLI is not installed on host."
+        fi
+    fi
 else
     echo "Error: Database backup failed or created an empty file!"
     rm -f "$BACKUP_FILE"
