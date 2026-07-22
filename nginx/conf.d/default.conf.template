@@ -1,4 +1,53 @@
 # ==========================================
+# 0. Wildcard Domain Routing (*.test) -> Default PHP 8.4
+# ==========================================
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name ~^(?<project>[^\.]+)\.test$;
+
+    ssl_certificate /etc/nginx/certs/local-dev.crt;
+    ssl_certificate_key /etc/nginx/certs/local-dev.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    # Default to project root
+    set $project_root /var/www/html/$project;
+
+    # Smart Framework / Laravel project detection
+    if (-d /var/www/html/$project/public) {
+        set $project_root /var/www/html/$project/public;
+    }
+    if (-f /var/www/html/$project/artisan) {
+        set $project_root /var/www/html/$project/public;
+    }
+    if (-f /var/www/html/$project/index.php) {
+        set $project_root /var/www/html/$project;
+    }
+
+    root $project_root;
+
+    index index.php index.html;
+    charset utf-8;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    location ~ \.php$ {
+        fastcgi_pass php84:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\.(?!well-known).* { deny all; }
+}
+
+# ==========================================
 # 1. Dynamic Domain Routing (*.php82.test) - HTTP & HTTPS
 # ==========================================
 server {
@@ -11,10 +60,8 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
-    # Default to project root
     set $project_root /var/www/html/$project;
 
-    # Smart Framework / Laravel project detection
     if (-d /var/www/html/$project/public) {
         set $project_root /var/www/html/$project/public;
     }
@@ -60,10 +107,8 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
-    # Default to project root
     set $project_root /var/www/html/$project;
 
-    # Smart Framework / Laravel project detection
     if (-d /var/www/html/$project/public) {
         set $project_root /var/www/html/$project/public;
     }
@@ -96,8 +141,102 @@ server {
     location ~ /\.(?!well-known).* { deny all; }
 }
 
+# ==========================================
+# 3. Dynamic Domain Routing (*.php84.test) - HTTP & HTTPS
+# ==========================================
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name ~^(?<project>.+)\.php84\.test$;
+
+    ssl_certificate /etc/nginx/certs/local-dev.crt;
+    ssl_certificate_key /etc/nginx/certs/local-dev.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    set $project_root /var/www/html/$project;
+
+    if (-d /var/www/html/$project/public) {
+        set $project_root /var/www/html/$project/public;
+    }
+    if (-f /var/www/html/$project/artisan) {
+        set $project_root /var/www/html/$project/public;
+    }
+    if (-f /var/www/html/$project/index.php) {
+        set $project_root /var/www/html/$project;
+    }
+
+    root $project_root;
+
+    index index.php index.html;
+    charset utf-8;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    location ~ \.php$ {
+        fastcgi_pass php84:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\.(?!well-known).* { deny all; }
+}
+
+# ==========================================
+# 4. Dynamic Domain Routing (*.php85.test) - HTTP & HTTPS
+# ==========================================
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name ~^(?<project>.+)\.php85\.test$;
+
+    ssl_certificate /etc/nginx/certs/local-dev.crt;
+    ssl_certificate_key /etc/nginx/certs/local-dev.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    set $project_root /var/www/html/$project;
+
+    if (-d /var/www/html/$project/public) {
+        set $project_root /var/www/html/$project/public;
+    }
+    if (-f /var/www/html/$project/artisan) {
+        set $project_root /var/www/html/$project/public;
+    }
+    if (-f /var/www/html/$project/index.php) {
+        set $project_root /var/www/html/$project;
+    }
+
+    root $project_root;
+
+    index index.php index.html;
+    charset utf-8;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    location ~ \.php$ {
+        fastcgi_pass php85:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\.(?!well-known).* { deny all; }
+}
+
 # =======================================================
-# 3. Port Fallback (PHP 8.2) - Handles Subfolders Cleanly
+# 5. Port Fallback (PHP 8.2) - Handles Subfolders Cleanly
 # =======================================================
 server {
     listen 8082;
@@ -106,7 +245,6 @@ server {
     index index.php index.html;
     charset utf-8;
 
-    # Subfolder project routing logic
     location / {
         set $project_name "";
         set $subpath "";
@@ -116,12 +254,10 @@ server {
             set $subpath $2;
         }
 
-        # 1. Static asset check under public/ (Vite build assets, storage symlinks, CSS/JS/images)
         if (-f /var/www/html/$project_name/public$subpath) {
             rewrite ^/([^/]+)(/.*)?$ /$1/public$2 last;
         }
 
-        # 2. Framework detection (Laravel artisan or public/index.php)
         set $use_public "0";
         if (-d /var/www/html/$project_name/public) {
             set $use_public "1";
@@ -140,7 +276,6 @@ server {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
-    # Global execution block for all PHP processes
     location ~ \.php$ {
         fastcgi_pass php82:9000;
         fastcgi_index index.php;
@@ -154,7 +289,7 @@ server {
 }
 
 # =======================================================
-# 4. Port Fallback (PHP 8.3) - Handles Subfolders Cleanly
+# 6. Port Fallback (PHP 8.3) - Handles Subfolders Cleanly
 # =======================================================
 server {
     listen 8083;
@@ -163,7 +298,6 @@ server {
     index index.php index.html;
     charset utf-8;
 
-    # Subfolder project routing logic
     location / {
         set $project_name "";
         set $subpath "";
@@ -173,12 +307,10 @@ server {
             set $subpath $2;
         }
 
-        # 1. Static asset check under public/ (Vite build assets, storage symlinks, CSS/JS/images)
         if (-f /var/www/html/$project_name/public$subpath) {
             rewrite ^/([^/]+)(/.*)?$ /$1/public$2 last;
         }
 
-        # 2. Framework detection (Laravel artisan or public/index.php)
         set $use_public "0";
         if (-d /var/www/html/$project_name/public) {
             set $use_public "1";
@@ -197,7 +329,6 @@ server {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
-    # Global execution block for all PHP processes
     location ~ \.php$ {
         fastcgi_pass php83:9000;
         fastcgi_index index.php;
@@ -211,13 +342,118 @@ server {
 }
 
 # =======================================================
-# 5. Tailscale Routing for Your Active Project
+# 7. Port Fallback (PHP 8.4) - Handles Subfolders Cleanly
 # =======================================================
 server {
-    listen 8083;
+    listen 8084;
+    server_name localhost;
+    root /var/www/html;
+    index index.php index.html;
+    charset utf-8;
+
+    location / {
+        set $project_name "";
+        set $subpath "";
+
+        if ($uri ~ ^/([^/]+)(/.*)?$) {
+            set $project_name $1;
+            set $subpath $2;
+        }
+
+        if (-f /var/www/html/$project_name/public$subpath) {
+            rewrite ^/([^/]+)(/.*)?$ /$1/public$2 last;
+        }
+
+        set $use_public "0";
+        if (-d /var/www/html/$project_name/public) {
+            set $use_public "1";
+        }
+        if (-f /var/www/html/$project_name/index.php) {
+            set $use_public "0";
+        }
+        if (-f /var/www/html/$project_name/artisan) {
+            set $use_public "1";
+        }
+
+        if ($use_public = "1") {
+            rewrite ^/([^/]+)(/.*)?$ /$1/public/index.php?$query_string last;
+        }
+
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass php84:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+    location ~ /\.(?!well-known).* { deny all; }
+}
+
+# =======================================================
+# 8. Port Fallback (PHP 8.5) - Handles Subfolders Cleanly
+# =======================================================
+server {
+    listen 8085;
+    server_name localhost;
+    root /var/www/html;
+    index index.php index.html;
+    charset utf-8;
+
+    location / {
+        set $project_name "";
+        set $subpath "";
+
+        if ($uri ~ ^/([^/]+)(/.*)?$) {
+            set $project_name $1;
+            set $subpath $2;
+        }
+
+        if (-f /var/www/html/$project_name/public$subpath) {
+            rewrite ^/([^/]+)(/.*)?$ /$1/public$2 last;
+        }
+
+        set $use_public "0";
+        if (-d /var/www/html/$project_name/public) {
+            set $use_public "1";
+        }
+        if (-f /var/www/html/$project_name/index.php) {
+            set $use_public "0";
+        }
+        if (-f /var/www/html/$project_name/artisan) {
+            set $use_public "1";
+        }
+
+        if ($use_public = "1") {
+            rewrite ^/([^/]+)(/.*)?$ /$1/public/index.php?$query_string last;
+        }
+
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass php85:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+    location ~ /\.(?!well-known).* { deny all; }
+}
+
+# =======================================================
+# 9. Tailscale Routing for Your Active Project
+# =======================================================
+server {
+    listen 8084;
     server_name ${TAILSCALE_DOMAIN};
 
-    # Auto-detect Laravel public root or user specified path
     set $tailscale_root /var/www/html/${TAILSCALE_PROJECT_PATH};
     if (-d /var/www/html/${TAILSCALE_PROJECT_PATH}/public) {
         set $tailscale_root /var/www/html/${TAILSCALE_PROJECT_PATH}/public;
@@ -238,7 +474,7 @@ server {
     }
 
     location ~ \.php$ {
-        fastcgi_pass php83:9000;
+        fastcgi_pass php84:9000;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         include fastcgi_params;

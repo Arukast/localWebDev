@@ -29,7 +29,8 @@ generate_ssl() {
     mkdir -p "$CERTS_DIR"
     if command -v mkcert &> /dev/null; then
         echo "🔒 Using mkcert to generate trusted local SSL certificates..."
-        mkcert -cert-file "$CERTS_DIR/local-dev.crt" -key-file "$CERTS_DIR/local-dev.key" "*.php82.test" "*.php83.test" "*.test" localhost 127.0.0.1 ::1
+        mkcert -cert-file "$CERTS_DIR/local-dev.crt" -key-file "$CERTS_DIR/local-dev.key" \
+            "*.php82.test" "*.php83.test" "*.php84.test" "*.php85.test" "*.test" localhost 127.0.0.1 ::1
         echo "✅ Trusted SSL certificates generated at nginx/certs/"
     else
         echo "⚠️ mkcert not found on host system. Falling back to OpenSSL self-signed certificate..."
@@ -158,6 +159,55 @@ teardown_dns() {
     echo "✨ Teardown complete."
 }
 
+# Install shell completions into user's profile
+install_completion() {
+    local shell_name="${SHELL##*/}"
+    echo "🔧 Installing './dev' shell completions for ${shell_name}..."
+
+    if [[ "$shell_name" == "zsh" ]]; then
+        local zshrc="$HOME/.zshrc"
+        if ! grep -q "compdef _dev dev" "$zshrc" 2>/dev/null; then
+            echo "" >> "$zshrc"
+            echo "# localDev CLI completions" >> "$zshrc"
+            echo "source <($SCRIPT_DIR/dev completion zsh)" >> "$zshrc"
+            echo "✅ Added completion loader to $zshrc"
+            echo "💡 Run 'source ~/.zshrc' to enable completion in current terminal session."
+        else
+            echo "ℹ️ Completions already configured in $zshrc"
+        fi
+    elif [[ "$shell_name" == "bash" ]]; then
+        local bashrc="$HOME/.bashrc"
+        if ! grep -q "_dev_completion" "$bashrc" 2>/dev/null; then
+            echo "" >> "$bashrc"
+            echo "# localDev CLI completions" >> "$bashrc"
+            echo "source <($SCRIPT_DIR/dev completion bash)" >> "$bashrc"
+            echo "✅ Added completion loader to $bashrc"
+            echo "💡 Run 'source ~/.bashrc' to enable completion in current terminal session."
+        else
+            echo "ℹ️ Completions already configured in $bashrc"
+        fi
+    elif [[ "$shell_name" == "fish" ]]; then
+        local fish_dir="$HOME/.config/fish/completions"
+        mkdir -p "$fish_dir"
+        "$SCRIPT_DIR/dev" completion fish > "$fish_dir/dev.fish"
+        echo "✅ Installed fish completions to $fish_dir/dev.fish"
+    else
+        echo "⚠️ Unsupported shell '$shell_name'. Supported shells: zsh, bash, fish."
+    fi
+}
+
+# Helper to determine target PHP container name from flag or default (php84)
+get_php_container() {
+    local raw_ver="$1"
+    case "$raw_ver" in
+        8.2|82) echo "local-php82" ;;
+        8.3|83) echo "local-php83" ;;
+        8.4|84) echo "local-php84" ;;
+        8.5|85) echo "local-php85" ;;
+        *)      echo "local-php84" ;;
+    esac
+}
+
 show_help() {
     echo "=========================================="
     echo " 🚀 localDev CLI Helper"
@@ -165,7 +215,7 @@ show_help() {
     echo "Usage: ./dev <command> [options]"
     echo ""
     echo "Docker Controls:"
-    echo "  up [services...]        Start Docker containers (runs ./dev ssl automatically)"
+    echo "  up [--tools|--all]      Start Docker containers (runs core by default, --tools enables Web GUIs/Meili/MinIO)"
     echo "  down                    Stop Docker containers"
     echo "  restart [service]       Restart containers"
     echo "  logs [-f] [service]     View container logs"
@@ -174,19 +224,21 @@ show_help() {
     echo "  dns [setup|status|teardown] Configure or test automatic *.test DNS resolution"
     echo ""
     echo "Project Management:"
-    echo "  new <name> [options]    Scaffold new project (--type=laravel|wordpress|blank, --php=8.3|8.2, --db=mariadb|postgres)"
+    echo "  new <name> [options]    Scaffold new project (--type=laravel|wordpress|symfony|vite|blank, --php=8.4|8.3|8.2|8.5, --db=mariadb|postgres)"
     echo "  list                    List all local projects and their test URLs"
+    echo "  share <project>         Share local project publicly via HTTPS Cloudflare Tunnel"
     echo ""
     echo "Development Helpers:"
-    echo "  composer [8.2|8.3] ...  Run Composer inside PHP container (defaults to 8.3)"
+    echo "  composer [ver] ...      Run Composer inside PHP container (default: 8.4; ver: 8.2|8.3|8.4|8.5)"
     echo "  artisan [app] <cmd>    Run Artisan command for Laravel app"
-    echo "  php [8.2|8.3] ...      Run PHP CLI command inside container"
-    echo "  npm [8.2|8.3] ...      Run NPM command inside container"
-    echo "  npx [8.2|8.3] ...      Run NPX command inside container"
-    echo "  node [8.2|8.3] ...     Run Node.js script inside container"
+    echo "  php [ver] ...          Run PHP CLI command inside container"
+    echo "  npm [ver] ...          Run NPM command inside container"
+    echo "  npx [ver] ...          Run NPX command inside container"
+    echo "  node [ver] ...         Run Node.js script inside container"
+    echo "  db shell <mariadb|postgres>              Open interactive DB CLI shell"
     echo "  db backup <mariadb|postgres> [out.sql]   Export database dump"
     echo "  db restore <mariadb|postgres> <in.sql]   Import database dump"
-    echo "  completion [bash|zsh|fish] Output shell autocompletion script"
+    echo "  completion [zsh|bash|fish|install]      Output or auto-install shell autocompletion"
     echo "  help                    Show this help message"
     echo "=========================================="
 }
@@ -196,12 +248,26 @@ case "$1" in
     up)
         ensure_ssl
         shift
-        docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d "$@"
+        use_tools=false
+        args=()
+        for arg in "$@"; do
+            if [[ "$arg" == "--tools" || "$arg" == "--all" ]]; then
+                use_tools=true
+            else
+                args+=("$arg")
+            fi
+        done
+
+        if [ "$use_tools" = true ]; then
+            docker compose -f "$SCRIPT_DIR/docker-compose.yml" --profile tools up -d "${args[@]}"
+        else
+            docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d "${args[@]}"
+        fi
         ;;
 
     down)
         shift
-        docker compose -f "$SCRIPT_DIR/docker-compose.yml" down "$@"
+        docker compose -f "$SCRIPT_DIR/docker-compose.yml" --profile tools down "$@"
         ;;
 
     restart)
@@ -245,14 +311,14 @@ case "$1" in
         shift
         if [[ -z "$1" ]]; then
             echo "❌ Error: Project name required."
-            echo "Usage: ./dev new <project_name> [--type=laravel|wordpress|blank] [--php=8.3|8.2] [--db=mariadb|postgres]"
+            echo "Usage: ./dev new <project_name> [--type=laravel|wordpress|symfony|vite|blank] [--php=8.4|8.3|8.2|8.5] [--db=mariadb|postgres]"
             exit 1
         fi
 
         proj_name="$1"
         shift
         type="laravel"
-        php_ver="8.3"
+        php_ver="8.4"
         db_type="mariadb"
 
         for arg in "$@"; do
@@ -263,7 +329,7 @@ case "$1" in
             esac
         done
 
-        php_container="local-php${php_ver//./}"
+        php_container=$(get_php_container "$php_ver")
         target_dir="$PROJECTS_DIR/$proj_name"
 
         if [[ -d "$target_dir" ]]; then
@@ -282,7 +348,6 @@ case "$1" in
             echo "📦 Running 'composer create-project laravel/laravel'..."
             docker exec -it -w "/var/www/html" "$php_container" composer create-project laravel/laravel "$proj_name"
 
-            # Inject container-friendly environment configuration into .env
             if [[ -f "$target_dir/.env" ]]; then
                 sed -i "s/DB_HOST=.*/DB_HOST=$db_type/" "$target_dir/.env"
                 sed -i "s/DB_DATABASE=.*/DB_DATABASE=$db_name/" "$target_dir/.env"
@@ -293,6 +358,16 @@ case "$1" in
                 sed -i "s/MAIL_PORT=.*/MAIL_PORT=1025/" "$target_dir/.env"
             fi
             echo "✅ Laravel project '$proj_name' created successfully!"
+
+        elif [[ "$type" == "symfony" ]]; then
+            echo "📦 Running 'composer create-project symfony/skeleton'..."
+            docker exec -it -w "/var/www/html" "$php_container" composer create-project symfony/skeleton "$proj_name"
+            echo "✅ Symfony project '$proj_name' created successfully!"
+
+        elif [[ "$type" == "vite" ]]; then
+            echo "📦 Setting up Vite frontend app..."
+            docker exec -it -w "/var/www/html" "$php_container" npm create vite@latest "$proj_name" -- --template vanilla
+            echo "✅ Vite project '$proj_name' created successfully!"
 
         elif [[ "$type" == "wordpress" ]]; then
             echo "📦 Setting up WordPress..."
@@ -349,16 +424,19 @@ EOF
 
         echo ""
         echo "🌐 Available Test URLs:"
-        echo "  - HTTPS: https://${proj_name}.php${php_ver//./}.test"
-        echo "  - HTTP:  http://localhost:80${php_ver//./}/${proj_name}"
+        echo "  - HTTPS (Default 8.4): https://${proj_name}.test"
+        echo "  - HTTPS (PHP 8.4):     https://${proj_name}.php84.test"
+        echo "  - HTTPS (PHP 8.3):     https://${proj_name}.php83.test"
+        echo "  - HTTPS (PHP 8.2):     https://${proj_name}.php82.test"
+        echo "  - HTTP (Fallback):     http://localhost:8084/${proj_name}"
         ;;
 
     list)
-        echo "====================================================="
+        echo "========================================================================================="
         echo " 📁 localDev Projects Overview"
-        echo "====================================================="
-        printf "%-20s %-12s %-32s %-30s\n" "PROJECT" "TYPE" "HTTPS DOMAIN (*.test)" "PORT FALLBACK"
-        echo "-------------------------------------------------------------------------------------"
+        echo "========================================================================================="
+        printf "%-18s %-12s %-32s %-25s\n" "PROJECT" "TYPE" "HTTPS DOMAIN (*.test)" "PORT FALLBACK"
+        echo "----------------------------------------------------------------------------------------- shadow"
 
         for pdir in "$PROJECTS_DIR"/*; do
             if [[ -d "$pdir" ]]; then
@@ -368,27 +446,50 @@ EOF
                     ptype="Laravel"
                 elif [[ -f "$pdir/wp-config.php" ]]; then
                     ptype="WordPress"
+                elif [[ -f "$pdir/symfony.lock" ]]; then
+                    ptype="Symfony"
+                elif [[ -f "$pdir/vite.config.js" || -f "$pdir/vite.config.ts" ]]; then
+                    ptype="Vite/Node"
                 fi
 
-                domain83="https://${pname}.php83.test"
-                fallback83="http://localhost:8083/${pname}"
+                domain="https://${pname}.test"
+                fallback="http://localhost:8084/${pname}"
 
-                printf "%-20s %-12s %-32s %-30s\n" "$pname" "$ptype" "$domain83" "$fallback83"
+                printf "%-18s %-12s %-32s %-25s\n" "$pname" "$ptype" "$domain" "$fallback"
             fi
         done
-        echo "====================================================="
+        echo "========================================================================================="
+        ;;
+
+    share)
+        shift
+        proj="$1"
+        if [[ -z "$proj" ]]; then
+            proj=$(detect_current_project)
+        fi
+
+        if [[ -z "$proj" ]]; then
+            echo "❌ Error: Project name required."
+            echo "Usage: ./dev share <project-name> (or run from inside projects/<project-name>)"
+            exit 1
+        fi
+
+        echo "🌐 Exposing project '$proj' publicly via Cloudflare Tunnel..."
+        echo "💡 Press Ctrl+C to terminate the tunnel."
+        echo ""
+        docker run --rm -it --net=host cloudflare/cloudflared:latest tunnel --url "http://127.0.0.1:8084/$proj"
         ;;
 
     composer)
         shift
-        php_ver="php83"
-        if [[ "$1" == "8.2" ]] || [[ "$1" == "82" ]]; then
-            php_ver="php82"
-            shift
-        elif [[ "$1" == "8.3" ]] || [[ "$1" == "83" ]]; then
-            php_ver="php83"
-            shift
-        fi
+        raw_ver="8.4"
+        case "$1" in
+            8.2|82|8.3|83|8.4|84|8.5|85)
+                raw_ver="$1"
+                shift
+                ;;
+        esac
+        container=$(get_php_container "$raw_ver")
 
         proj=$(detect_current_project)
         workdir="/var/www/html"
@@ -396,12 +497,12 @@ EOF
             workdir="/var/www/html/$proj"
         fi
 
-        docker exec -it -w "$workdir" "local-$php_ver" composer "$@"
+        docker exec -it -w "$workdir" "$container" composer "$@"
         ;;
 
     artisan)
         shift
-        php_ver="php83"
+        raw_ver="8.4"
         proj=$(detect_current_project)
 
         if [[ -d "$PROJECTS_DIR/$1" ]]; then
@@ -415,19 +516,20 @@ EOF
             exit 1
         fi
 
-        docker exec -it -w "/var/www/html/$proj" "local-$php_ver" php artisan "$@"
+        container=$(get_php_container "$raw_ver")
+        docker exec -it -w "/var/www/html/$proj" "$container" php artisan "$@"
         ;;
 
     php)
         shift
-        php_ver="php83"
-        if [[ "$1" == "8.2" ]] || [[ "$1" == "82" ]]; then
-            php_ver="php82"
-            shift
-        elif [[ "$1" == "8.3" ]] || [[ "$1" == "83" ]]; then
-            php_ver="php83"
-            shift
-        fi
+        raw_ver="8.4"
+        case "$1" in
+            8.2|82|8.3|83|8.4|84|8.5|85)
+                raw_ver="$1"
+                shift
+                ;;
+        esac
+        container=$(get_php_container "$raw_ver")
 
         proj=$(detect_current_project)
         workdir="/var/www/html"
@@ -435,19 +537,19 @@ EOF
             workdir="/var/www/html/$proj"
         fi
 
-        docker exec -it -w "$workdir" "local-$php_ver" php "$@"
+        docker exec -it -w "$workdir" "$container" php "$@"
         ;;
 
     npm)
         shift
-        php_ver="php83"
-        if [[ "$1" == "8.2" ]] || [[ "$1" == "82" ]]; then
-            php_ver="php82"
-            shift
-        elif [[ "$1" == "8.3" ]] || [[ "$1" == "83" ]]; then
-            php_ver="php83"
-            shift
-        fi
+        raw_ver="8.4"
+        case "$1" in
+            8.2|82|8.3|83|8.4|84|8.5|85)
+                raw_ver="$1"
+                shift
+                ;;
+        esac
+        container=$(get_php_container "$raw_ver")
 
         proj=$(detect_current_project)
         workdir="/var/www/html"
@@ -455,19 +557,19 @@ EOF
             workdir="/var/www/html/$proj"
         fi
 
-        docker exec -it -w "$workdir" "local-$php_ver" npm "$@"
+        docker exec -it -w "$workdir" "$container" npm "$@"
         ;;
 
     npx)
         shift
-        php_ver="php83"
-        if [[ "$1" == "8.2" ]] || [[ "$1" == "82" ]]; then
-            php_ver="php82"
-            shift
-        elif [[ "$1" == "8.3" ]] || [[ "$1" == "83" ]]; then
-            php_ver="php83"
-            shift
-        fi
+        raw_ver="8.4"
+        case "$1" in
+            8.2|82|8.3|83|8.4|84|8.5|85)
+                raw_ver="$1"
+                shift
+                ;;
+        esac
+        container=$(get_php_container "$raw_ver")
 
         proj=$(detect_current_project)
         workdir="/var/www/html"
@@ -475,19 +577,19 @@ EOF
             workdir="/var/www/html/$proj"
         fi
 
-        docker exec -it -w "$workdir" "local-$php_ver" npx "$@"
+        docker exec -it -w "$workdir" "$container" npx "$@"
         ;;
 
     node)
         shift
-        php_ver="php83"
-        if [[ "$1" == "8.2" ]] || [[ "$1" == "82" ]]; then
-            php_ver="php82"
-            shift
-        elif [[ "$1" == "8.3" ]] || [[ "$1" == "83" ]]; then
-            php_ver="php83"
-            shift
-        fi
+        raw_ver="8.4"
+        case "$1" in
+            8.2|82|8.3|83|8.4|84|8.5|85)
+                raw_ver="$1"
+                shift
+                ;;
+        esac
+        container=$(get_php_container "$raw_ver")
 
         proj=$(detect_current_project)
         workdir="/var/www/html"
@@ -495,17 +597,28 @@ EOF
             workdir="/var/www/html/$proj"
         fi
 
-        docker exec -it -w "$workdir" "local-$php_ver" node "$@"
+        docker exec -it -w "$workdir" "$container" node "$@"
         ;;
 
     db)
         shift
         action="$1"
-        shift
+        shift || true
         db_type="$1"
         shift || true
 
-        if [[ "$action" == "backup" ]]; then
+        if [[ "$action" == "shell" ]]; then
+            if [[ "$db_type" == "mariadb" || "$db_type" == "mysql" ]]; then
+                echo "💻 Connecting to MariaDB interactive shell..."
+                docker exec -it local-mariadb mariadb -u db_user -pdb_password local_db
+            elif [[ "$db_type" == "postgres" || "$db_type" == "pgsql" ]]; then
+                echo "💻 Connecting to PostgreSQL interactive shell..."
+                docker exec -it local-postgres psql -U db_user -d local_db
+            else
+                echo "Usage: ./dev db shell <mariadb|postgres>"
+            fi
+
+        elif [[ "$action" == "backup" ]]; then
             outfile="${1:-${db_type}_backup_$(date +%Y%m%d_%H%M%S).sql}"
             if [[ "$db_type" == "mariadb" || "$db_type" == "mysql" ]]; then
                 echo "📦 Exporting MariaDB to $outfile..."
@@ -538,14 +651,17 @@ EOF
                 exit 1
             fi
         else
-            echo "Usage: ./dev db backup <mariadb|postgres> [file.sql]"
+            echo "Usage: ./dev db shell <mariadb|postgres>"
+            echo "       ./dev db backup <mariadb|postgres> [file.sql]"
             echo "       ./dev db restore <mariadb|postgres> <file.sql>"
         fi
         ;;
 
     completion)
         shell="${2:-bash}"
-        if [[ "$shell" == "zsh" ]]; then
+        if [[ "$shell" == "install" ]]; then
+            install_completion
+        elif [[ "$shell" == "zsh" ]]; then
             cat <<'EOF'
 #compdef dev
 _dev() {
@@ -561,13 +677,15 @@ _dev() {
         'dns:Configure or test *.test DNS resolution'
         'new:Scaffold new project'
         'list:List local projects'
+        'share:Share local project via Cloudflare Tunnel'
         'composer:Run Composer inside container'
         'artisan:Run Artisan command'
         'php:Run PHP command'
         'npm:Run NPM command'
         'npx:Run NPX command'
         'node:Run Node command'
-        'db:Database backup/restore'
+        'db:Database backup/restore/shell'
+        'completion:Shell autocompletion'
         'help:Show help'
     )
     _describe 'command' commands
@@ -588,14 +706,15 @@ complete -c dev -n "__fish_use_subcommand" -a "ssl" -d "Generate or renew SSL ce
 complete -c dev -n "__fish_use_subcommand" -a "dns" -d "Configure or test *.test DNS resolution"
 complete -c dev -n "__fish_use_subcommand" -a "new" -d "Scaffold new project"
 complete -c dev -n "__fish_use_subcommand" -a "list" -d "List local projects"
+complete -c dev -n "__fish_use_subcommand" -a "share" -d "Share local project via Cloudflare Tunnel"
 complete -c dev -n "__fish_use_subcommand" -a "composer" -d "Run Composer inside container"
 complete -c dev -n "__fish_use_subcommand" -a "artisan" -d "Run Artisan command"
 complete -c dev -n "__fish_use_subcommand" -a "php" -d "Run PHP CLI inside container"
 complete -c dev -n "__fish_use_subcommand" -a "npm" -d "Run NPM inside container"
 complete -c dev -n "__fish_use_subcommand" -a "npx" -d "Run NPX inside container"
 complete -c dev -n "__fish_use_subcommand" -a "node" -d "Run Node script inside container"
-complete -c dev -n "__fish_use_subcommand" -a "db" -d "Database backup/restore"
-complete -c dev -n "__fish_use_subcommand" -a "completion" -d "Output shell autocompletion script"
+complete -c dev -n "__fish_use_subcommand" -a "db" -d "Database backup/restore/shell"
+complete -c dev -n "__fish_use_subcommand" -a "completion" -d "Shell autocompletion installer"
 complete -c dev -n "__fish_use_subcommand" -a "help" -d "Show help"
 EOF
         else
@@ -605,7 +724,7 @@ _dev_completion() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="up down restart logs status ps ssl dns new list composer artisan php npm npx node db help completion"
+    opts="up down restart logs status ps ssl dns new list share composer artisan php npm npx node db help completion"
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )

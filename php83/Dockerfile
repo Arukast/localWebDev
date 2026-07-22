@@ -4,7 +4,7 @@ FROM php:8.3-fpm
 ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
 
 RUN chmod +x /usr/local/bin/install-php-extensions && \
-    install-php-extensions gd zip intl mysqli pdo_mysql pdo_pgsql pgsql opcache redis pcntl
+    install-php-extensions gd zip intl mysqli pdo_mysql pdo_pgsql pgsql opcache redis pcntl bcmath exif soap imagick xdebug
 
 # Install Node.js, npm, git, unzip
 RUN apt-get update && apt-get install -y nodejs npm git unzip && rm -rf /var/lib/apt/lists/*
@@ -16,4 +16,3 @@ COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
 COPY php.ini /usr/local/etc/php/conf.d/custom-php.ini
 
 WORKDIR /var/www/html
-
