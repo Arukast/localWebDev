@@ -1,6 +1,6 @@
 # Offline Production Environment Template (Docker)
 
-This is a minimized, high-performance, and secure Docker environment template designed for deploying a single-version PHP application on local computers (such as cash registers, office intranet servers, or local display kiosks).
+This is a minimized, high-performance, hardened, and secure Docker environment template designed for deploying single-version PHP applications (standard flat PHP or frameworks like Laravel and Symfony) on production systems, intranet servers, edge nodes, or display kiosks.
 
 ---
 
@@ -8,19 +8,22 @@ This is a minimized, high-performance, and secure Docker environment template de
 Copy this directory structure to your target deployment computer:
 ```text
 production-system/
-├── app/                  <-- Put your PHP code files here (index.php, etc.)
-├── backups/              <-- Database backups will automatically save here
+├── .github/
+│   └── workflows/
+│       └── ci.yml        <-- GitHub Actions CI workflow (compose config, shellcheck, Docker build)
+├── app/                  <-- Put your PHP code files here (index.php, public/, etc.)
+├── backups/              <-- Database backups (.sql.gz & .sha256) will automatically save here
 ├── nginx/
 │   ├── certs/            <-- Place SSL certificates here (server.crt, server.key)
-│   └── conf.d/
-│       └── default.conf  <-- Web server virtual host settings & security headers
+│   └── templates/
+│       └── default.conf.template  <-- Nginx virtual host template with ${NGINX_WEB_ROOT} support
 ├── php/
-│   ├── Dockerfile        <-- Minimal Alpine PHP FPM image build
+│   ├── Dockerfile        <-- Minimal Alpine PHP 8.3 FPM image with Composer 2 & non-root user
 │   └── php.ini           <-- Secure production PHP settings & OPcache tuning
-├── .env                  <-- Port and DB passwords (ignored by Git)
-├── backup.sh             <-- Backup automation script
-├── restore.sh            <-- Interactive database restore script
-└── docker-compose.yml    <-- Service orchestrator with container healthchecks
+├── .env                  <-- Port, web root, and DB passwords (ignored by Git)
+├── backup.sh             <-- Backup automation script with SHA256 integrity generation
+├── restore.sh            <-- Interactive database restore script with SHA256 checksum verification
+└── docker-compose.yml    <-- Service orchestrator with healthchecks, log rotation, & memory limits
 ```
 
 ---
@@ -28,11 +31,13 @@ production-system/
 ## 🚀 Installation & First Boot
 
 1. **Copy the folder** to your target computer (e.g., to `/home/user/production-system/`).
-2. **Move your PHP code** into the `app/` subdirectory (so `app/index.php` is in the right place).
+2. **Move your PHP code** into the `app/` subdirectory (so `app/index.php` or `app/public/index.php` is in place).
 3. **Configure Settings**:
    Copy `.env.example` to `.env` and edit your passwords and configurations:
    ```ini
    APP_NAME=my-app
+   # Document Root: set /var/www/html for standard flat PHP, or /var/www/html/public for Laravel/Symfony
+   NGINX_WEB_ROOT=/var/www/html
    DB_ROOT_PASSWORD=strong_production_root_password
    DB_NAME=app_production_db
    DB_USER=app_production_user
@@ -45,7 +50,17 @@ production-system/
    ```
 5. **Access the Application**:
    Open the browser on the computer and navigate to:
-   *   `http://localhost:8181` (or your configured `APP_PORT`).
+   * `http://localhost:8181` (or your configured `APP_PORT`).
+
+---
+
+## 🔒 Security & Performance Hardening
+
+* **Non-Root Runtime Execution**: The PHP-FPM container executes processes under the `www-data` non-root user account to mitigate container breakout risks.
+* **Dynamic Web Root Support**: Set `NGINX_WEB_ROOT=/var/www/html/public` in `.env` when deploying frameworks like Laravel or Symfony to prevent exposing root application files.
+* **Log Rotation Safeguards**: All containers use Docker's `json-file` logging driver with `max-size: 10m` and `max-file: 3` to prevent log files from exhausting host storage.
+* **Resource Limits**: Every container is bounded with strict memory constraints (e.g. PHP 512MB, MariaDB 1024MB, Nginx 256MB) to ensure system stability.
+* **Composer 2 Integration**: Composer 2 is built into the PHP FPM container, allowing you to manage packages or run `docker compose exec php composer install`.
 
 ---
 
@@ -68,8 +83,8 @@ To enable SSL / HTTPS:
      - ./nginx/certs:/etc/nginx/certs:ro
    ```
 
-3. **Enable SSL Block in `nginx/conf.d/default.conf`**:
-   Uncomment the `server { listen 443 ssl http2; ... }` configuration block at the bottom of `default.conf`.
+3. **Enable SSL Block in `nginx/templates/default.conf.template`**:
+   Uncomment the `server { listen 443 ssl http2; ... }` configuration block at the bottom of `default.conf.template`.
 
 4. **Restart Stack**:
    ```bash
@@ -117,20 +132,24 @@ By default, database administration web interfaces are disabled for security and
 
 ---
 
-## 💾 Database Operations
+## 💾 Database Operations & Checksum Integrity
 
 ### 1. Manual Backup
 To run a manual database backup at any time:
 ```bash
 ./backup.sh
 ```
-This will generate a compressed `${APP_NAME}_db_backup_YYYYMMDD_HHMMSS.sql.gz` backup file inside the `backups/` folder and prune backups older than 30 days.
+This will generate:
+- A compressed backup: `${APP_NAME}_db_backup_YYYYMMDD_HHMMSS.sql.gz`
+- A SHA256 checksum file: `${APP_NAME}_db_backup_YYYYMMDD_HHMMSS.sql.gz.sha256`
+- Secure file permissions (`chmod 600`)
+- Auto-prune backups and checksum files older than 30 days.
 
 ### 2. Interactive Database Restore
 To restore a database from an existing backup:
 
 ```bash
-# Interactive selection menu:
+# Interactive selection menu (automatically verifies SHA256 checksum prior to restore):
 ./restore.sh
 
 # Or specify a backup file directly:
@@ -155,4 +174,3 @@ To automate backups so they run every evening at **10:00 PM**, set up a Linux `c
    0 22 * * * cd /home/user/production-system && ./backup.sh >> backups/backup.log 2>&1
    ```
 3. Save and close. The system will now back up the database every night and log activity to `backups/backup.log`.
-

@@ -44,11 +44,23 @@ if [ -f "$BACKUP_FILE" ] && [ -s "$BACKUP_FILE" ]; then
 
     # Compress the SQL backup to save disk space
     gzip "$BACKUP_FILE"
-    echo "Compressed backup file: ${BACKUP_FILE}.gz"
+    COMPRESSED_FILE="${BACKUP_FILE}.gz"
+    echo "Compressed backup file: $COMPRESSED_FILE"
+
+    # Restrict file permissions for security
+    chmod 600 "$COMPRESSED_FILE"
+
+    # Generate SHA256 checksum for integrity verification
+    if command -v sha256sum >/dev/null 2>&1; then
+        (cd "$BACKUP_DIR" && sha256sum "$(basename "$COMPRESSED_FILE")" > "$(basename "$COMPRESSED_FILE").sha256")
+        chmod 600 "${COMPRESSED_FILE}.sha256"
+        echo "Generated checksum: ${COMPRESSED_FILE}.sha256"
+    fi
 
     # Keep only the last 30 days of backups to prevent running out of disk space
     echo "Cleaning up backups older than 30 days..."
     find "$BACKUP_DIR" -name "${APP_NAME}_db_backup_*.sql.gz" -mtime +30 -delete
+    find "$BACKUP_DIR" -name "${APP_NAME}_db_backup_*.sql.gz.sha256" -mtime +30 -delete
     echo "Cleanup finished."
 else
     echo "Error: Database backup failed or created an empty file!"

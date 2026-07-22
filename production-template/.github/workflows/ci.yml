@@ -1,0 +1,30 @@
+name: Production Template CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose Configuration
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
+
+      - name: ShellCheck Scripts
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scripthashtag: '#!/bin/bash'
+          ignore: SC1091
+
+      - name: Test PHP Docker Build
+        run: |
+          cd php
+          docker build -t production-template-php:test .

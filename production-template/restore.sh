@@ -104,6 +104,19 @@ if [ ! -f "$TARGET_FILE" ]; then
     exit 1
 fi
 
+# Verify SHA256 checksum if checksum file exists
+CHECKSUM_FILE="${TARGET_FILE}.sha256"
+if [ -f "$CHECKSUM_FILE" ] && command -v sha256sum >/dev/null 2>&1; then
+    echo "Verifying backup integrity via SHA256..."
+    CHECKSUM_DIR=$(dirname "$TARGET_FILE")
+    if (cd "$CHECKSUM_DIR" && sha256sum -c "$(basename "$CHECKSUM_FILE")" >/dev/null 2>&1); then
+        echo "Checksum verification PASSED."
+    else
+        echo "Error: SHA256 checksum verification FAILED! The backup file may be corrupted or altered."
+        exit 1
+    fi
+fi
+
 echo "=========================================="
 echo "Database Restore Setup"
 echo "Target Container : $CONTAINER_NAME"
