@@ -335,13 +335,14 @@ EOF
 }
 
 snapshot_restore() {
-    local name="$1"
-    shift || true
+    local name=""
     local force=false
 
     for arg in "$@"; do
         if [[ "$arg" == "--force" || "$arg" == "-f" ]]; then
             force=true
+        elif [[ -z "$name" && "$arg" != -* ]]; then
+            name="$arg"
         fi
     done
 
