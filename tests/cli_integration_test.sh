@@ -78,7 +78,7 @@ output_snap_restore=$("$DEV_BIN" snapshot restore test_integration_snap --force 
 assert_contains "Snapshot restore succeeds with --force" "$output_snap_restore" "restored successfully"
 
 output_snap_del=$("$DEV_BIN" snapshot delete test_integration_snap 2>&1)
-assert_contains "Snapshot delete succeeds" "$output_snap_del" "deleted snapshot"
+assert_contains "Snapshot delete succeeds" "$output_snap_del" "Deleted snapshot"
 
 echo ""
 echo "=== Integration Test Summary ==="
