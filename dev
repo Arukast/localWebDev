@@ -293,7 +293,7 @@ snapshot_save() {
     fi
 
     # Sanitize name
-    name="$(echo "$name" | tr -c 'a-zA-Z0-9_-' '_')"
+    name="$(printf '%s' "$name" | tr -c 'a-zA-Z0-9_-' '_')"
     mkdir -p "$SNAPSHOTS_DIR"
 
     local archive="${SNAPSHOTS_DIR}/${name}.tar.gz"
