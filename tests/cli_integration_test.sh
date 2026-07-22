@@ -45,8 +45,7 @@ fi
 
 # 2. Container Status Check (Before Up)
 output_ps=$("$DEV_BIN" ps 2>&1)
-echo "  ✅ PASS: ./dev ps executed cleanly"
-PASSED=$((PASSED + 1))
+assert_contains "Container status before up" "$output_ps" "CONTAINER ID"
 
 # 3. Spin up DNS service only (fast integration test)
 echo "Spinning up dnsmasq service..."
