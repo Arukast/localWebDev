@@ -6,6 +6,9 @@ ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/do
 RUN chmod +x /usr/local/bin/install-php-extensions && \
     install-php-extensions gd zip intl mysqli pdo_mysql pdo_pgsql pgsql opcache redis pcntl
 
+# Install Node.js, npm, git, unzip
+RUN apt-get update && apt-get install -y nodejs npm git unzip && rm -rf /var/lib/apt/lists/*
+
 # Install Composer permanently
 COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
 

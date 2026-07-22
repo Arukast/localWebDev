@@ -43,13 +43,30 @@ generate_ssl() {
     fi
 }
 
+# Auto-create database if not exists
+create_db_if_not_exists() {
+    local db_type="$1"
+    local db_name="$2"
+    db_name="${db_name//-/_}" # sanitize hyphens to underscores for DB names
+
+    if [[ "$db_type" == "mariadb" || "$db_type" == "mysql" ]]; then
+        echo "🗄️  Checking/Creating MariaDB database: ${db_name}..."
+        docker exec -i local-mariadb mariadb -u db_user -pdb_password -e "CREATE DATABASE IF NOT EXISTS \`${db_name}\`;" 2>/dev/null || {
+            echo "⚠️ Could not auto-create MariaDB database (make sure containers are running with './dev up')."
+        }
+    elif [[ "$db_type" == "postgres" || "$db_type" == "pgsql" ]]; then
+        echo "🗄️  Checking/Creating PostgreSQL database: ${db_name}..."
+        docker exec -i local-postgres psql -U db_user -d local_db -c "CREATE DATABASE ${db_name};" 2>/dev/null || true
+    fi
+}
+
 show_help() {
     echo "=========================================="
     echo " 🚀 localDev CLI Helper"
     echo "=========================================="
     echo "Usage: ./dev <command> [options]"
     echo ""
-    echo "Commands:"
+    echo "Docker Controls:"
     echo "  up [services...]        Start Docker containers (runs ./dev ssl automatically)"
     echo "  down                    Stop Docker containers"
     echo "  restart [service]       Restart containers"
@@ -57,12 +74,20 @@ show_help() {
     echo "  status / ps             View running containers status"
     echo "  ssl                     Generate or renew SSL certs (*.test)"
     echo ""
+    echo "Project Management:"
+    echo "  new <name> [options]    Scaffold new project (--type=laravel|wordpress|blank, --php=8.3|8.2, --db=mariadb|postgres)"
+    echo "  list                    List all local projects and their test URLs"
+    echo ""
     echo "Development Helpers:"
     echo "  composer [8.2|8.3] ...  Run Composer inside PHP container (defaults to 8.3)"
     echo "  artisan [app] <cmd>    Run Artisan command for Laravel app"
     echo "  php [8.2|8.3] ...      Run PHP CLI command inside container"
+    echo "  npm [8.2|8.3] ...      Run NPM command inside container"
+    echo "  npx [8.2|8.3] ...      Run NPX command inside container"
+    echo "  node [8.2|8.3] ...     Run Node.js script inside container"
     echo "  db backup <mariadb|postgres> [out.sql]   Export database dump"
     echo "  db restore <mariadb|postgres> <in.sql]   Import database dump"
+    echo "  completion [bash|zsh|fish] Output shell autocompletion script"
     echo "  help                    Show this help message"
     echo "=========================================="
 }
@@ -99,6 +124,144 @@ case "$1" in
         generate_ssl
         ;;
 
+    new)
+        shift
+        if [[ -z "$1" ]]; then
+            echo "❌ Error: Project name required."
+            echo "Usage: ./dev new <project_name> [--type=laravel|wordpress|blank] [--php=8.3|8.2] [--db=mariadb|postgres]"
+            exit 1
+        fi
+
+        proj_name="$1"
+        shift
+        type="laravel"
+        php_ver="8.3"
+        db_type="mariadb"
+
+        for arg in "$@"; do
+            case $arg in
+                --type=*) type="${arg#*=}" ;;
+                --php=*) php_ver="${arg#*=}" ;;
+                --db=*) db_type="${arg#*=}" ;;
+            esac
+        done
+
+        php_container="local-php${php_ver//./}"
+        target_dir="$PROJECTS_DIR/$proj_name"
+
+        if [[ -d "$target_dir" ]]; then
+            echo "❌ Error: Directory projects/$proj_name already exists!"
+            exit 1
+        fi
+
+        echo "🚀 Scaffolding new '$type' project '$proj_name' (PHP $php_ver, DB: $db_type)..."
+
+        db_name="${proj_name//-/_}"
+        create_db_if_not_exists "$db_type" "$db_name"
+
+        mkdir -p "$target_dir"
+
+        if [[ "$type" == "laravel" ]]; then
+            echo "📦 Running 'composer create-project laravel/laravel'..."
+            docker exec -it -w "/var/www/html" "$php_container" composer create-project laravel/laravel "$proj_name"
+
+            # Inject container-friendly environment configuration into .env
+            if [[ -f "$target_dir/.env" ]]; then
+                sed -i "s/DB_HOST=.*/DB_HOST=$db_type/" "$target_dir/.env"
+                sed -i "s/DB_DATABASE=.*/DB_DATABASE=$db_name/" "$target_dir/.env"
+                sed -i "s/DB_USERNAME=.*/DB_USERNAME=db_user/" "$target_dir/.env"
+                sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=db_password/" "$target_dir/.env"
+                sed -i "s/REDIS_HOST=.*/REDIS_HOST=redis/" "$target_dir/.env"
+                sed -i "s/MAIL_HOST=.*/MAIL_HOST=mailpit/" "$target_dir/.env"
+                sed -i "s/MAIL_PORT=.*/MAIL_PORT=1025/" "$target_dir/.env"
+            fi
+            echo "✅ Laravel project '$proj_name' created successfully!"
+
+        elif [[ "$type" == "wordpress" ]]; then
+            echo "📦 Setting up WordPress..."
+            curl -sSL https://wordpress.org/latest.tar.gz | tar -xz -C "$PROJECTS_DIR"
+            mv "$PROJECTS_DIR/wordpress" "$target_dir"
+
+            cat <<EOF > "$target_dir/wp-config.php"
+<?php
+define( 'DB_NAME', '${db_name}' );
+define( 'DB_USER', 'db_user' );
+define( 'DB_PASSWORD', 'db_password' );
+define( 'DB_HOST', '${db_type}' );
+define( 'DB_CHARSET', 'utf8mb4' );
+define( 'DB_COLLATE', '' );
+
+\$table_prefix = 'wp_';
+define( 'WP_DEBUG', true );
+
+if ( ! defined( 'ABSPATH' ) ) {
+    define( 'ABSPATH', __DIR__ . '/' );
+}
+require_once ABSPATH . 'wp-settings.php';
+EOF
+            echo "✅ WordPress project '$proj_name' created successfully!"
+
+        else
+            echo "📦 Setting up Blank/Vanilla PHP project..."
+            cat <<EOF > "$target_dir/index.php"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${proj_name} - localDev</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; display: grid; place-content: center; min-height: 100vh; margin: 0; }
+        .card { background: #1e293b; padding: 2rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; max-width: 500px; }
+        h1 { color: #38bdf8; margin-bottom: 0.5rem; }
+        p { color: #94a3b8; }
+        .badge { background: #0284c7; padding: 4px 10px; border-radius: 9999px; font-size: 0.875rem; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🚀 ${proj_name}</h1>
+        <p>Your localDev environment is ready!</p>
+        <p><span class="badge">PHP <?php echo phpversion(); ?></span></p>
+    </div>
+</body>
+</html>
+EOF
+            echo "✅ Blank project '$proj_name' created successfully!"
+        fi
+
+        echo ""
+        echo "🌐 Available Test URLs:"
+        echo "  - HTTPS: https://${proj_name}.php${php_ver//./}.test"
+        echo "  - HTTP:  http://localhost:80${php_ver//./}/${proj_name}"
+        ;;
+
+    list)
+        echo "====================================================="
+        echo " 📁 localDev Projects Overview"
+        echo "====================================================="
+        printf "%-20s %-12s %-32s %-30s\n" "PROJECT" "TYPE" "HTTPS DOMAIN (*.test)" "PORT FALLBACK"
+        echo "-------------------------------------------------------------------------------------"
+
+        for pdir in "$PROJECTS_DIR"/*; do
+            if [[ -d "$pdir" ]]; then
+                pname="$(basename "$pdir")"
+                ptype="Vanilla/PHP"
+                if [[ -f "$pdir/artisan" ]]; then
+                    ptype="Laravel"
+                elif [[ -f "$pdir/wp-config.php" ]]; then
+                    ptype="WordPress"
+                fi
+
+                domain83="https://${pname}.php83.test"
+                fallback83="http://localhost:8083/${pname}"
+
+                printf "%-20s %-12s %-32s %-30s\n" "$pname" "$ptype" "$domain83" "$fallback83"
+            fi
+        done
+        echo "====================================================="
+        ;;
+
     composer)
         shift
         php_ver="php83"
@@ -124,7 +287,6 @@ case "$1" in
         php_ver="php83"
         proj=$(detect_current_project)
 
-        # Check if first arg is project name
         if [[ -d "$PROJECTS_DIR/$1" ]]; then
             proj="$1"
             shift
@@ -157,6 +319,66 @@ case "$1" in
         fi
 
         docker exec -it -w "$workdir" "local-$php_ver" php "$@"
+        ;;
+
+    npm)
+        shift
+        php_ver="php83"
+        if [[ "$1" == "8.2" ]] || [[ "$1" == "82" ]]; then
+            php_ver="php82"
+            shift
+        elif [[ "$1" == "8.3" ]] || [[ "$1" == "83" ]]; then
+            php_ver="php83"
+            shift
+        fi
+
+        proj=$(detect_current_project)
+        workdir="/var/www/html"
+        if [[ -n "$proj" ]]; then
+            workdir="/var/www/html/$proj"
+        fi
+
+        docker exec -it -w "$workdir" "local-$php_ver" npm "$@"
+        ;;
+
+    npx)
+        shift
+        php_ver="php83"
+        if [[ "$1" == "8.2" ]] || [[ "$1" == "82" ]]; then
+            php_ver="php82"
+            shift
+        elif [[ "$1" == "8.3" ]] || [[ "$1" == "83" ]]; then
+            php_ver="php83"
+            shift
+        fi
+
+        proj=$(detect_current_project)
+        workdir="/var/www/html"
+        if [[ -n "$proj" ]]; then
+            workdir="/var/www/html/$proj"
+        fi
+
+        docker exec -it -w "$workdir" "local-$php_ver" npx "$@"
+        ;;
+
+    node)
+        shift
+        php_ver="php83"
+        if [[ "$1" == "8.2" ]] || [[ "$1" == "82" ]]; then
+            php_ver="php82"
+            shift
+        elif [[ "$1" == "8.3" ]] || [[ "$1" == "83" ]]; then
+            php_ver="php83"
+            shift
+        fi
+
+        proj=$(detect_current_project)
+        workdir="/var/www/html"
+        if [[ -n "$proj" ]]; then
+            workdir="/var/www/html/$proj"
+        fi
+
+        docker exec -it -w "$workdir" "local-$php_ver" node "$@"
         ;;
 
     db)
@@ -201,6 +423,78 @@ case "$1" in
         else
             echo "Usage: ./dev db backup <mariadb|postgres> [file.sql]"
             echo "       ./dev db restore <mariadb|postgres> <file.sql>"
+        fi
+        ;;
+
+    completion)
+        shell="${2:-bash}"
+        if [[ "$shell" == "zsh" ]]; then
+            cat <<'EOF'
+#compdef dev
+_dev() {
+    local -a commands
+    commands=(
+        'up:Start Docker containers'
+        'down:Stop Docker containers'
+        'restart:Restart containers'
+        'logs:View container logs'
+        'status:View running containers status'
+        'ps:View running containers status'
+        'ssl:Generate SSL certs'
+        'new:Scaffold new project'
+        'list:List local projects'
+        'composer:Run Composer inside container'
+        'artisan:Run Artisan command'
+        'php:Run PHP command'
+        'npm:Run NPM command'
+        'npx:Run NPX command'
+        'node:Run Node command'
+        'db:Database backup/restore'
+        'help:Show help'
+    )
+    _describe 'command' commands
+}
+compdef _dev dev
+EOF
+        elif [[ "$shell" == "fish" ]]; then
+            cat <<'EOF'
+# Fish completion for dev CLI
+complete -c dev -f
+complete -c dev -n "__fish_use_subcommand" -a "up" -d "Start Docker containers"
+complete -c dev -n "__fish_use_subcommand" -a "down" -d "Stop Docker containers"
+complete -c dev -n "__fish_use_subcommand" -a "restart" -d "Restart containers"
+complete -c dev -n "__fish_use_subcommand" -a "logs" -d "View container logs"
+complete -c dev -n "__fish_use_subcommand" -a "status" -d "View running containers status"
+complete -c dev -n "__fish_use_subcommand" -a "ps" -d "View running containers status"
+complete -c dev -n "__fish_use_subcommand" -a "ssl" -d "Generate or renew SSL certs"
+complete -c dev -n "__fish_use_subcommand" -a "new" -d "Scaffold new project"
+complete -c dev -n "__fish_use_subcommand" -a "list" -d "List local projects"
+complete -c dev -n "__fish_use_subcommand" -a "composer" -d "Run Composer inside container"
+complete -c dev -n "__fish_use_subcommand" -a "artisan" -d "Run Artisan command"
+complete -c dev -n "__fish_use_subcommand" -a "php" -d "Run PHP CLI inside container"
+complete -c dev -n "__fish_use_subcommand" -a "npm" -d "Run NPM inside container"
+complete -c dev -n "__fish_use_subcommand" -a "npx" -d "Run NPX inside container"
+complete -c dev -n "__fish_use_subcommand" -a "node" -d "Run Node script inside container"
+complete -c dev -n "__fish_use_subcommand" -a "db" -d "Database backup/restore"
+complete -c dev -n "__fish_use_subcommand" -a "completion" -d "Output shell autocompletion script"
+complete -c dev -n "__fish_use_subcommand" -a "help" -d "Show help"
+EOF
+        else
+            cat <<'EOF'
+_dev_completion() {
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="up down restart logs status ps ssl new list composer artisan php npm npx node db help completion"
+
+    if [[ ${COMP_CWORD} -eq 1 ]]; then
+        COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+        return 0
+    fi
+}
+complete -F _dev_completion dev ./dev
+EOF
         fi
         ;;
 

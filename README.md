@@ -31,11 +31,17 @@ The environment includes a unified `./dev` executable script to simplify daily d
 | `./dev status` | Display status of running containers |
 | `./dev logs [-f] [service]` | View log output |
 | `./dev ssl` | Generate or renew local wildcard SSL certificates (`*.test`) |
+| `./dev new <name> [options]` | Scaffold new project (`--type=laravel\|wordpress\|blank`, `--php=8.3\|8.2`, `--db=mariadb\|postgres`) |
+| `./dev list` | List all local projects with their HTTPS domain links and port fallbacks |
 | `./dev composer [8.2\|8.3] <args>` | Execute Composer inside PHP container (auto-detects project folder) |
 | `./dev artisan [app] <command>` | Run Laravel Artisan command inside target project |
 | `./dev php [8.2\|8.3] <args>` | Run PHP CLI inside target container |
+| `./dev npm [8.2\|8.3] <args>` | Run NPM command inside PHP container |
+| `./dev npx [8.2\|8.3] <args>` | Run NPX command inside PHP container |
+| `./dev node [8.2\|8.3] <args>` | Run Node script inside PHP container |
 | `./dev db backup <mariadb\|postgres> [file.sql]` | Dump database backup file |
 | `./dev db restore <mariadb\|postgres> <file.sql>` | Restore database from SQL dump |
+| `./dev completion [bash\|zsh\|fish]` | Output shell autocompletion script |
 
 ---
 
