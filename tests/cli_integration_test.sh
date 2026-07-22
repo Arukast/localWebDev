@@ -62,6 +62,20 @@ echo "Bringing down service..."
 output_down=$("$DEV_BIN" down 2>&1)
 assert_contains "Docker down succeeds" "$output_down" "Stopped"
 
+# 6. Snapshot Lifecycle Test
+echo "Testing Snapshot Lifecycle..."
+output_snap_save=$("$DEV_BIN" snapshot save test_integration_snap --notes="Automated test snapshot" 2>&1)
+assert_contains "Snapshot save succeeds" "$output_snap_save" "saved successfully"
+
+output_snap_list=$("$DEV_BIN" snapshot list 2>&1)
+assert_contains "Snapshot list contains saved snapshot" "$output_snap_list" "test_integration_snap"
+
+output_snap_restore=$("$DEV_BIN" snapshot restore test_integration_snap --force 2>&1)
+assert_contains "Snapshot restore succeeds with --force" "$output_snap_restore" "restored successfully"
+
+output_snap_del=$("$DEV_BIN" snapshot delete test_integration_snap 2>&1)
+assert_contains "Snapshot delete succeeds" "$output_snap_del" "Deleted snapshot"
+
 echo ""
 echo "=== Integration Test Summary ==="
 echo "Passed: $PASSED | Failed: $FAILED"

@@ -4,6 +4,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CERTS_DIR="${SCRIPT_DIR}/nginx/certs"
 PROJECTS_DIR="${SCRIPT_DIR}/projects"
+SNAPSHOTS_DIR="${SCRIPT_DIR}/snapshots"
 
 # Helper: Detect current project if inside projects/ subdirectory
 detect_current_project() {
@@ -260,6 +261,224 @@ get_php_container() {
     esac
 }
 
+# Environment snapshot management
+snapshot_save() {
+    local name="$1"
+    shift || true
+    local notes=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --notes=*|-m=*)
+                notes="${1#*=}"
+                shift
+                ;;
+            --notes|-m)
+                notes="$2"
+                shift 2
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+
+    if [[ -z "$name" ]]; then
+        name="snapshot_$(date +%Y%m%d_%H%M%S)"
+    fi
+
+    # Sanitize name
+    name="$(echo "$name" | tr -c 'a-zA-Z0-9_-' '_')"
+    mkdir -p "$SNAPSHOTS_DIR"
+
+    local archive="${SNAPSHOTS_DIR}/${name}.tar.gz"
+    echo "📸 Creating environment snapshot '${name}'..."
+
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+
+    # Dump MariaDB if container is running
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^local-mariadb$"; then
+        echo " 📦 Exporting MariaDB databases..."
+        docker exec -i local-mariadb mariadb-dump -u db_user -pdb_password --all-databases > "$tmp_dir/mariadb_dump.sql" 2>/dev/null || true
+    fi
+
+    # Dump PostgreSQL if container is running
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^local-postgres$"; then
+        echo " 📦 Exporting PostgreSQL databases..."
+        docker exec -t local-postgres pg_dumpall -U db_user > "$tmp_dir/postgres_dump.sql" 2>/dev/null || true
+    fi
+
+    # Dump Redis if container is running
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^local-redis$"; then
+        echo " 📦 Triggering Redis snapshot..."
+        docker exec local-redis redis-cli bgsave &>/dev/null || true
+    fi
+
+    # Save metadata JSON
+    cat <<EOF > "$tmp_dir/metadata.json"
+{
+  "name": "$name",
+  "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "notes": "$notes",
+  "has_mariadb": $( [[ -f "$tmp_dir/mariadb_dump.sql" ]] && echo "true" || echo "false" ),
+  "has_postgres": $( [[ -f "$tmp_dir/postgres_dump.sql" ]] && echo "true" || echo "false" )
+}
+EOF
+
+    tar -czf "$archive" -C "$tmp_dir" .
+    rm -rf "$tmp_dir"
+
+    local size
+    size=$(du -h "$archive" | cut -f1)
+    echo "✅ Snapshot '${name}' saved successfully (${size}) at snapshots/${name}.tar.gz"
+}
+
+snapshot_restore() {
+    local name="$1"
+    shift || true
+    local force=false
+
+    for arg in "$@"; do
+        if [[ "$arg" == "--force" || "$arg" == "-f" ]]; then
+            force=true
+        fi
+    done
+
+    if [[ -z "$name" ]]; then
+        echo "❌ Please specify snapshot name to restore."
+        snapshot_list
+        exit 1
+    fi
+
+    local archive="${SNAPSHOTS_DIR}/${name}.tar.gz"
+    if [[ ! -f "$archive" ]]; then
+        echo "❌ Snapshot '${name}' not found at snapshots/${name}.tar.gz"
+        exit 1
+    fi
+
+    if [[ "$force" != "true" ]]; then
+        echo "⚠️ RESTORE WARNING: Restoring snapshot '${name}' will overwrite active MariaDB/PostgreSQL databases!"
+        read -p "Are you sure you want to proceed? (y/N) " confirm
+        if [[ "$confirm" != [yY] && "$confirm" != [yY][eE][sS] ]]; then
+            echo "Operation cancelled."
+            exit 0
+        fi
+    fi
+
+    echo "📥 Restoring environment snapshot '${name}'..."
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    tar -xzf "$archive" -C "$tmp_dir"
+
+    if [[ -f "$tmp_dir/mariadb_dump.sql" ]]; then
+        if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^local-mariadb$"; then
+            echo " 📥 Restoring MariaDB databases..."
+            docker exec -i local-mariadb mariadb -u db_user -pdb_password < "$tmp_dir/mariadb_dump.sql" 2>/dev/null || true
+            echo " ✅ MariaDB databases restored."
+        else
+            echo " ⚠️ MariaDB dump found, but 'local-mariadb' container is not running."
+        fi
+    fi
+
+    if [[ -f "$tmp_dir/postgres_dump.sql" ]]; then
+        if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^local-postgres$"; then
+            echo " 📥 Restoring PostgreSQL databases..."
+            docker exec -i local-postgres psql -U db_user -d local_db < "$tmp_dir/postgres_dump.sql" 2>/dev/null || true
+            echo " ✅ PostgreSQL databases restored."
+        else
+            echo " ⚠️ PostgreSQL dump found, but 'local-postgres' container is not running."
+        fi
+    fi
+
+    rm -rf "$tmp_dir"
+    echo "✨ Snapshot '${name}' restored successfully!"
+}
+
+snapshot_list() {
+    mkdir -p "$SNAPSHOTS_DIR"
+    local files=("$SNAPSHOTS_DIR"/*.tar.gz)
+
+    echo "=========================================="
+    echo " 📸 Local Environment Snapshots"
+    echo "=========================================="
+
+    if [[ ! -e "${files[0]}" ]]; then
+        echo "No snapshots found in ./snapshots/"
+        echo "Create one using: ./dev snapshot save <name>"
+        return 0
+    fi
+
+    printf "%-20s %-10s %-22s %s\n" "NAME" "SIZE" "CREATED AT" "NOTES"
+    printf "%-20s %-10s %-22s %s\n" "----" "----" "----------" "-----"
+
+    for file in "${files[@]}"; do
+        local bname
+        bname=$(basename "$file" .tar.gz)
+        local size
+        size=$(du -h "$file" | cut -f1)
+
+        local tmp_meta
+        tmp_meta=$(tar -xzf "$file" ./metadata.json -O 2>/dev/null || true)
+        local created="N/A"
+        local notes=""
+
+        if [[ -n "$tmp_meta" ]]; then
+            created=$(echo "$tmp_meta" | grep '"created_at"' | cut -d'"' -f4)
+            notes=$(echo "$tmp_meta" | grep '"notes"' | cut -d'"' -f4)
+        fi
+
+        printf "%-20s %-10s %-22s %s\n" "$bname" "$size" "${created:-N/A}" "${notes:--}"
+    done
+    echo "=========================================="
+}
+
+snapshot_delete() {
+    local name="$1"
+    if [[ -z "$name" ]]; then
+        echo "❌ Please specify snapshot name to delete."
+        exit 1
+    fi
+
+    local archive="${SNAPSHOTS_DIR}/${name}.tar.gz"
+    if [[ ! -f "$archive" ]]; then
+        echo "❌ Snapshot '${name}' not found."
+        exit 1
+    fi
+
+    rm -f "$archive"
+    echo "🗑️ Deleted snapshot '${name}'."
+}
+
+snapshot_interactive() {
+    snapshot_list
+    echo ""
+    echo "Options:"
+    echo "  1) Save new snapshot"
+    echo "  2) Restore existing snapshot"
+    echo "  3) Delete snapshot"
+    echo "  4) Exit"
+    read -p "Select an action (1-4): " choice
+    case "$choice" in
+        1)
+            read -p "Snapshot name: " sname
+            read -p "Notes (optional): " snotes
+            snapshot_save "$sname" --notes="$snotes"
+            ;;
+        2)
+            read -p "Snapshot name to restore: " sname
+            snapshot_restore "$sname"
+            ;;
+        3)
+            read -p "Snapshot name to delete: " sname
+            snapshot_delete "$sname"
+            ;;
+        *)
+            echo "Exiting."
+            ;;
+    esac
+}
+
 show_help() {
     echo "=========================================="
     echo " 🚀 localDev CLI Helper"
@@ -290,6 +509,7 @@ show_help() {
     echo "  db shell <mariadb|postgres>              Open interactive DB CLI shell"
     echo "  db backup <mariadb|postgres> [out.sql]   Export database dump"
     echo "  db restore <mariadb|postgres> <in.sql]   Import database dump"
+    echo "  snapshot [save|restore|list|delete]     Manage environment snapshots"
     echo "  test [unit|integration|all]             Run unit/integration tests"
     echo "  completion [zsh|bash|fish|install]      Output or auto-install shell autocompletion"
     echo "  help                    Show this help message"
@@ -735,6 +955,35 @@ EOF
         fi
         ;;
 
+    snapshot)
+        shift
+        subcmd="${1:-interactive}"
+        case "$subcmd" in
+            save)
+                shift
+                snapshot_save "$@"
+                ;;
+            restore)
+                shift
+                snapshot_restore "$@"
+                ;;
+            list)
+                snapshot_list
+                ;;
+            delete|rm)
+                shift
+                snapshot_delete "$@"
+                ;;
+            interactive)
+                snapshot_interactive
+                ;;
+            *)
+                echo "Usage: ./dev snapshot [save|restore|list|delete] [name]"
+                exit 1
+                ;;
+        esac
+        ;;
+
     test)
         shift
         target="${1:-all}"
@@ -780,6 +1029,7 @@ _dev() {
         'npx:Run NPX command'
         'node:Run Node command'
         'db:Database backup/restore/shell'
+        'snapshot:Manage environment snapshots'
         'test:Run unit and integration tests'
         'completion:Shell autocompletion'
         'help:Show help'
@@ -810,6 +1060,7 @@ complete -c dev -n "__fish_use_subcommand" -a "npm" -d "Run NPM inside container
 complete -c dev -n "__fish_use_subcommand" -a "npx" -d "Run NPX inside container"
 complete -c dev -n "__fish_use_subcommand" -a "node" -d "Run Node script inside container"
 complete -c dev -n "__fish_use_subcommand" -a "db" -d "Database backup/restore/shell"
+complete -c dev -n "__fish_use_subcommand" -a "snapshot" -d "Manage environment snapshots"
 complete -c dev -n "__fish_use_subcommand" -a "test" -d "Run unit and integration tests"
 complete -c dev -n "__fish_use_subcommand" -a "completion" -d "Shell autocompletion installer"
 complete -c dev -n "__fish_use_subcommand" -a "help" -d "Show help"
@@ -821,7 +1072,7 @@ _dev_completion() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="up down restart logs status ps ssl dns new list share composer artisan php npm npx node db test help completion"
+    opts="up down restart logs status ps ssl dns new list share composer artisan php npm npx node db snapshot test help completion"
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )

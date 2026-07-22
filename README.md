@@ -46,6 +46,7 @@ The environment includes a unified `./dev` executable script to simplify daily d
 | `./dev db shell <mariadb\|postgres>` | Open interactive database shell inside container |
 | `./dev db backup <mariadb\|postgres> [file.sql]` | Dump database backup file |
 | `./dev db restore <mariadb\|postgres> <file.sql>` | Restore database from SQL dump |
+| `./dev snapshot [save\|restore\|list\|delete]` | Create, list, restore, or delete compressed state snapshots |
 | `./dev completion install` | Install shell completions into `~/.zshrc`, `~/.bashrc`, or fish config |
 
 ---

@@ -76,6 +76,15 @@ assert_contains "Projects list includes dummy project" "$output_detect" "dummy_t
 popd >/dev/null
 rm -rf "${SCRIPT_DIR}/projects/dummy_test_proj"
 
+# 6. Snapshot Unit Tests
+assert_contains "Help output mentions snapshot command" "$output_help" "snapshot"
+
+output_snap_list=$("$DEV_BIN" snapshot list 2>&1)
+assert_contains "Snapshot list command header" "$output_snap_list" "Local Environment Snapshots"
+
+assert_exit_code "Snapshot restore without args returns exit code 1" 1 "$DEV_BIN" snapshot restore
+assert_exit_code "Snapshot delete without args returns exit code 1" 1 "$DEV_BIN" snapshot delete
+
 echo ""
 echo "=== Unit Test Summary ==="
 echo "Passed: $PASSED | Failed: $FAILED"

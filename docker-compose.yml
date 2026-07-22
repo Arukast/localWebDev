@@ -13,6 +13,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: ${DNSMASQ_MEM_LIMIT:-64m}
     networks:
       - local-network
     restart: unless-stopped
@@ -241,6 +245,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: ${MAILPIT_MEM_LIMIT:-128m}
     networks:
       - local-network
     restart: unless-stopped
@@ -259,6 +267,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: ${REDIS_COMMANDER_MEM_LIMIT:-128m}
     depends_on:
       redis:
         condition: service_healthy
@@ -282,6 +294,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: ${PHPMYADMIN_MEM_LIMIT:-256m}
     depends_on:
       mariadb:
         condition: service_healthy
@@ -307,6 +323,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: ${PGADMIN_MEM_LIMIT:-256m}
     depends_on:
       postgres:
         condition: service_healthy
@@ -331,6 +351,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: ${MEILISEARCH_MEM_LIMIT:-512m}
     networks:
       - local-network
     restart: unless-stopped
@@ -354,9 +378,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: ${MINIO_MEM_LIMIT:-512m}
     networks:
       - local-network
     restart: unless-stopped
+
 
 
 networks:
