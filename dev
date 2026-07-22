@@ -8,7 +8,8 @@ SNAPSHOTS_DIR="${SCRIPT_DIR}/snapshots"
 
 # Helper: Detect current project if inside projects/ subdirectory
 detect_current_project() {
-    local cwd="$(pwd)"
+    local cwd
+    cwd="$(pwd)"
     if [[ "$cwd" == "$PROJECTS_DIR"* ]] && [[ "$cwd" != "$PROJECTS_DIR" ]]; then
         local rel_path="${cwd#$PROJECTS_DIR/}"
         echo "${rel_path%%/*}"
@@ -118,7 +119,8 @@ create_db_if_not_exists() {
 setup_dns() {
     echo "🌐 Setting up local DNS resolution for *.test domains..."
     
-    local os="$(uname -s)"
+    local os
+    os="$(uname -s)"
     
     if [[ "$os" == "Linux" ]]; then
         if systemctl is-active --quiet systemd-resolved 2>/dev/null || systemctl is-enabled --quiet systemd-resolved 2>/dev/null; then
@@ -190,7 +192,8 @@ check_dns_status() {
 # Remove local DNS setup
 teardown_dns() {
     echo "🧹 Cleaning up local DNS configurations..."
-    local os="$(uname -s)"
+    local os
+    os="$(uname -s)"
 
     if [[ "$os" == "Linux" ]]; then
         if [[ -f /etc/systemd/resolved.conf.d/localdev.conf ]]; then
