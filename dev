@@ -16,10 +16,22 @@ detect_current_project() {
     fi
 }
 
-# Helper: Ensure SSL certs exist (creates self-signed fallback if missing)
+# Helper: Ensure SSL certs exist and are valid (auto-renews if expiring within 30 days)
 ensure_ssl() {
     mkdir -p "$CERTS_DIR"
+    local needs_cert=false
+
     if [[ ! -f "$CERTS_DIR/local-dev.crt" ]] || [[ ! -f "$CERTS_DIR/local-dev.key" ]]; then
+        needs_cert=true
+    elif command -v openssl &>/dev/null; then
+        # 2592000 seconds = 30 days
+        if ! openssl x509 -checkend 2592000 -noout -in "$CERTS_DIR/local-dev.crt" &>/dev/null; then
+            echo "⚠️ Local SSL certificate is expired or expiring within 30 days. Auto-renewing..."
+            needs_cert=true
+        fi
+    fi
+
+    if [[ "$needs_cert" == "true" ]]; then
         generate_ssl
     fi
 }
@@ -44,6 +56,44 @@ generate_ssl() {
     fi
 }
 
+# Helper: Wait for container to be healthy (up to timeout seconds)
+wait_for_container_health() {
+    local container_name="$1"
+    local timeout="${2:-10}"
+    local count=0
+
+    # Skip check if container does not exist
+    if ! docker inspect "$container_name" &>/dev/null; then
+        return 0
+    fi
+
+    local inspect_health
+    inspect_health=$(docker inspect --format='{{json .State.Health}}' "$container_name" 2>/dev/null)
+    if [[ "$inspect_health" == "null" || -z "$inspect_health" ]]; then
+        return 0
+    fi
+
+    echo "⏳ Checking health status for ${container_name}..."
+    while [[ $count -lt $timeout ]]; do
+        local status
+        status=$(docker inspect --format='{{json .State.Health.Status}}' "$container_name" 2>/dev/null | tr -d '"')
+
+        if [[ "$status" == "healthy" ]]; then
+            echo "✅ Container ${container_name} is healthy and ready!"
+            return 0
+        elif [[ "$status" == "unhealthy" ]]; then
+            echo "⚠️ Container ${container_name} healthcheck reported unhealthy status."
+            return 1
+        fi
+
+        sleep 1
+        count=$((count + 1))
+    done
+
+    echo "⚠️ Timed out waiting for ${container_name} health (proceeding...)"
+    return 0
+}
+
 # Auto-create database if not exists
 create_db_if_not_exists() {
     local db_type="$1"
@@ -51,11 +101,13 @@ create_db_if_not_exists() {
     db_name="${db_name//-/_}" # sanitize hyphens to underscores for DB names
 
     if [[ "$db_type" == "mariadb" || "$db_type" == "mysql" ]]; then
+        wait_for_container_health "local-mariadb" 10
         echo "🗄️  Checking/Creating MariaDB database: ${db_name}..."
         docker exec -i local-mariadb mariadb -u db_user -pdb_password -e "CREATE DATABASE IF NOT EXISTS \`${db_name}\`;" 2>/dev/null || {
             echo "⚠️ Could not auto-create MariaDB database (make sure containers are running with './dev up')."
         }
     elif [[ "$db_type" == "postgres" || "$db_type" == "pgsql" ]]; then
+        wait_for_container_health "local-postgres" 10
         echo "🗄️  Checking/Creating PostgreSQL database: ${db_name}..."
         docker exec -i local-postgres psql -U db_user -d local_db -c "CREATE DATABASE ${db_name};" 2>/dev/null || true
     fi
@@ -422,6 +474,25 @@ EOF
             echo "✅ Blank project '$proj_name' created successfully!"
         fi
 
+        # Standardize .env file for projects that do not already have one
+        if [[ ! -f "$target_dir/.env" ]]; then
+            cat <<EOF > "$target_dir/.env"
+APP_NAME="${proj_name}"
+APP_ENV=local
+DB_CONNECTION=${db_type}
+DB_HOST=${db_type}
+DB_PORT=$([[ "$db_type" == "postgres" || "$db_type" == "pgsql" ]] && echo "5432" || echo "3306")
+DB_DATABASE=${db_name}
+DB_USERNAME=db_user
+DB_PASSWORD=db_password
+REDIS_HOST=redis
+REDIS_PORT=6379
+MAIL_HOST=mailpit
+MAIL_PORT=1025
+EOF
+            echo "📄 Generated standardized project '.env' file with database & service credentials."
+        fi
+
         echo ""
         echo "🌐 Available Test URLs:"
         echo "  - HTTPS (Default 8.4): https://${proj_name}.test"
@@ -609,9 +680,11 @@ EOF
 
         if [[ "$action" == "shell" ]]; then
             if [[ "$db_type" == "mariadb" || "$db_type" == "mysql" ]]; then
+                wait_for_container_health "local-mariadb" 10
                 echo "💻 Connecting to MariaDB interactive shell..."
                 docker exec -it local-mariadb mariadb -u db_user -pdb_password local_db
             elif [[ "$db_type" == "postgres" || "$db_type" == "pgsql" ]]; then
+                wait_for_container_health "local-postgres" 10
                 echo "💻 Connecting to PostgreSQL interactive shell..."
                 docker exec -it local-postgres psql -U db_user -d local_db
             else
@@ -621,10 +694,12 @@ EOF
         elif [[ "$action" == "backup" ]]; then
             outfile="${1:-${db_type}_backup_$(date +%Y%m%d_%H%M%S).sql}"
             if [[ "$db_type" == "mariadb" || "$db_type" == "mysql" ]]; then
+                wait_for_container_health "local-mariadb" 10
                 echo "📦 Exporting MariaDB to $outfile..."
                 docker exec -i local-mariadb mariadb-dump -u db_user -pdb_password local_db > "$outfile"
                 echo "✅ Mariadb dump completed: $outfile"
             elif [[ "$db_type" == "postgres" || "$db_type" == "pgsql" ]]; then
+                wait_for_container_health "local-postgres" 10
                 echo "📦 Exporting PostgreSQL to $outfile..."
                 docker exec -t local-postgres pg_dump -U db_user local_db > "$outfile"
                 echo "✅ PostgreSQL dump completed: $outfile"
@@ -639,10 +714,12 @@ EOF
                 exit 1
             fi
             if [[ "$db_type" == "mariadb" || "$db_type" == "mysql" ]]; then
+                wait_for_container_health "local-mariadb" 10
                 echo "📥 Importing $infile into MariaDB..."
                 docker exec -i local-mariadb mariadb -u db_user -pdb_password local_db < "$infile"
                 echo "✅ Mariadb restore completed!"
             elif [[ "$db_type" == "postgres" || "$db_type" == "pgsql" ]]; then
+                wait_for_container_health "local-postgres" 10
                 echo "📥 Importing $infile into PostgreSQL..."
                 docker exec -i local-postgres psql -U db_user -d local_db < "$infile"
                 echo "✅ PostgreSQL restore completed!"
