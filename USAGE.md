@@ -8,7 +8,7 @@ Detailed instructions for installing, configuring, running, and using localDev.
 
 | Platform | Support | Requirements & Details |
 | :--- | :--- | :--- |
-| **Linux** | Native | Native Bash & Docker Engine. `./dev dns setup` automatically configures `systemd-resolved` or `NetworkManager`. |
+| **Linux** | Native | Native Bash & Docker Engine. Requires current user to be in `docker` group (`sudo usermod -aG docker $USER` and relogin/`newgrp docker`). `./dev dns setup` automatically configures `systemd-resolved` or `NetworkManager`. |
 | **macOS** | Native | Native Bash & Docker Desktop / OrbStack. `./dev dns setup` automatically configures `/etc/resolver/test`. Trusted SSL via `mkcert`. |
 | **Windows** | WSL2 / Git Bash | Requires **WSL2** (Windows Subsystem for Linux) or **Git Bash** to run `./dev` commands and Docker Desktop (WSL2 backend). Automatic host DNS wildcard resolution (`*.test`) requires manual setup or WSL resolver configuration; port fallbacks (e.g. `http://localhost:8084`) work out of the box. |
 
@@ -16,13 +16,18 @@ Detailed instructions for installing, configuring, running, and using localDev.
 
 ## Quick Start
 
-1. **Start core services with `./dev`**:
+1. **Ensure `./dev` is executable**:
+   ```bash
+   chmod +x dev
+   ```
+
+2. **Start core services with `./dev`**:
    ```bash
    ./dev up
    ```
    *(To start optional Web GUIs, Meilisearch, and MinIO: `./dev up --tools`)*
 
-2. **Check the Dashboard / Port Fallbacks**:
+3. **Check the Dashboard / Port Fallbacks**:
    - Default PHP (8.4): [https://my-app.test](https://my-app.test) or [http://localhost:8084](http://localhost:8084)
    - PHP 8.3: [https://my-app.php83.test](https://my-app.php83.test) or [http://localhost:8083](http://localhost:8083)
    - PHP 8.2: [https://my-app.php82.test](https://my-app.php82.test) or [http://localhost:8082](http://localhost:8082)

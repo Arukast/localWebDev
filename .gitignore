@@ -6,3 +6,16 @@ projects/*
 !projects/index.php
 
 repomix-output.xml
+# Ignore local generated SSL certificates & keys
+nginx/certs/
+
+# Ignore environment database & state snapshots
+snapshots/
+
+# OS and Editor junk
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
