@@ -1,4 +1,5 @@
-FROM php:8.3-fpm-alpine
+ARG PHP_VERSION=8.3-fpm-alpine
+FROM php:${PHP_VERSION}
 
 # Copy Composer 2 binary from official image
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
