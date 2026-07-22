@@ -50,4 +50,4 @@ A developer handles three simultaneous active client projects:
 
 For detailed operational guides, setup instructions, and CLI command references, refer to the following documentation files:
 
-- [Setup & Usage Guide](file:///home/arukast/Projects/localDev/USAGE.md): Quick start steps, system requirements, CLI command reference, and port mappings.
+- [Setup & Usage Guide](USAGE.md): Quick start steps, system requirements, CLI command reference, and port mappings.
