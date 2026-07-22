@@ -290,6 +290,7 @@ show_help() {
     echo "  db shell <mariadb|postgres>              Open interactive DB CLI shell"
     echo "  db backup <mariadb|postgres> [out.sql]   Export database dump"
     echo "  db restore <mariadb|postgres> <in.sql]   Import database dump"
+    echo "  test [unit|integration|all]             Run unit/integration tests"
     echo "  completion [zsh|bash|fish|install]      Output or auto-install shell autocompletion"
     echo "  help                    Show this help message"
     echo "=========================================="
@@ -734,6 +735,23 @@ EOF
         fi
         ;;
 
+    test)
+        shift
+        target="${1:-all}"
+        if [[ "$target" == "unit" ]]; then
+            bash "${SCRIPT_DIR}/tests/cli_unit_test.sh"
+        elif [[ "$target" == "integration" ]]; then
+            bash "${SCRIPT_DIR}/tests/cli_integration_test.sh"
+        elif [[ "$target" == "all" ]]; then
+            bash "${SCRIPT_DIR}/tests/cli_unit_test.sh"
+            echo ""
+            bash "${SCRIPT_DIR}/tests/cli_integration_test.sh"
+        else
+            echo "Usage: ./dev test [unit|integration|all]"
+            exit 1
+        fi
+        ;;
+
     completion)
         shell="${2:-bash}"
         if [[ "$shell" == "install" ]]; then
@@ -762,6 +780,7 @@ _dev() {
         'npx:Run NPX command'
         'node:Run Node command'
         'db:Database backup/restore/shell'
+        'test:Run unit and integration tests'
         'completion:Shell autocompletion'
         'help:Show help'
     )
@@ -791,6 +810,7 @@ complete -c dev -n "__fish_use_subcommand" -a "npm" -d "Run NPM inside container
 complete -c dev -n "__fish_use_subcommand" -a "npx" -d "Run NPX inside container"
 complete -c dev -n "__fish_use_subcommand" -a "node" -d "Run Node script inside container"
 complete -c dev -n "__fish_use_subcommand" -a "db" -d "Database backup/restore/shell"
+complete -c dev -n "__fish_use_subcommand" -a "test" -d "Run unit and integration tests"
 complete -c dev -n "__fish_use_subcommand" -a "completion" -d "Shell autocompletion installer"
 complete -c dev -n "__fish_use_subcommand" -a "help" -d "Show help"
 EOF
@@ -801,7 +821,7 @@ _dev_completion() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="up down restart logs status ps ssl dns new list share composer artisan php npm npx node db help completion"
+    opts="up down restart logs status ps ssl dns new list share composer artisan php npm npx node db test help completion"
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )

@@ -116,3 +116,24 @@ The environment supports zero-configuration HTTPS for your local custom domains 
    ```bash
    ./dev dns status
    ```
+
+---
+
+## 🧪 Testing & Quality Assurance
+
+`localDev` features a dual-tier CLI test harness and GitHub Actions CI workflow to guarantee script reliability and container resilience:
+
+```bash
+# Run both unit and integration tests
+./dev test
+
+# Run fast offline CLI unit tests
+./dev test unit
+
+# Run container integration tests
+./dev test integration
+```
+
+- **ShellCheck Compliance**: Continuous integration validates all Bash scripts for strict linting with zero warnings.
+- **Docker Compose Validation**: Ensures compose specs, resource caps, and service health checks pass syntax checks.
+
