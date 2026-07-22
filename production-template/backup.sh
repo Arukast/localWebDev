@@ -1,42 +1,32 @@
 #!/bin/bash
-
-# === Database Restore Instructions for Host Machine ===
-# Since we changed host ports to avoid conflicts with XAMPP/Laragon,
-# if you restore from your host terminal using a native client, use these ports:
-#
-# For MariaDB (Host Port 3307):
-# mysql -h 127.0.0.1 -P 3307 -u root -pYOUR_ROOT_PASSWORD app_db < backup.sql
-#
-# For PostgreSQL (Host Port 5433):
-# psql -h 127.0.0.1 -p 5433 -U db_user -d app_db < backup.sql
+set -eo pipefail
 
 # Configuration
 BACKUP_DIR="./backups"
 mkdir -p "$BACKUP_DIR"
 
-# Timestamp format (YYYYMMDD_HHMMSS)
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-BACKUP_FILE="$BACKUP_DIR/pos_db_backup_$TIMESTAMP.sql"
-
-# Load database credentials safely from the local .env file
+# Load database credentials safely from local .env file
 if [ -f .env ]; then
     echo "Loading environment configurations..."
-    # Read line-by-line to safely parse variables with spaces/special characters
-    while IFS= read -r line || [ -n "$line" ]; do
-        # Strip leading/trailing whitespaces
-        line=$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-        # Skip empty lines and lines starting with '#'
-        if [[ -n "$line" && ! "$line" =~ ^# ]]; then
-            export "$line"
-        fi
-    done < .env
+    set -a
+    # shellcheck disable=SC1091
+    source .env
+    set +a
 else
     echo "Error: .env file not found in current directory."
     exit 1
 fi
 
+APP_NAME="${APP_NAME:-app}"
+DB_NAME="${DB_NAME:-app_db}"
+
+# Timestamp format (YYYYMMDD_HHMMSS)
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+BACKUP_FILE="$BACKUP_DIR/${APP_NAME}_db_backup_$TIMESTAMP.sql"
+
 echo "=========================================="
 echo "Starting Database Backup for: $DB_NAME"
+echo "Application: $APP_NAME"
 echo "Time: $(date)"
 echo "=========================================="
 
@@ -49,7 +39,7 @@ docker exec "$APP_NAME-database" mariadb-dump --single-transaction -u root -p"$D
 # docker exec "$APP_NAME-database" pg_dump -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE"
 
 # Check if the backup command succeeded
-if [ $? -eq 0 ]; then
+if [ -f "$BACKUP_FILE" ] && [ -s "$BACKUP_FILE" ]; then
     echo "Success: Backup file created at $BACKUP_FILE"
 
     # Compress the SQL backup to save disk space
@@ -58,13 +48,15 @@ if [ $? -eq 0 ]; then
 
     # Keep only the last 30 days of backups to prevent running out of disk space
     echo "Cleaning up backups older than 30 days..."
-    find "$BACKUP_DIR" -name "pos_db_backup_*.sql.gz" -mtime +30 -delete
+    find "$BACKUP_DIR" -name "${APP_NAME}_db_backup_*.sql.gz" -mtime +30 -delete
     echo "Cleanup finished."
 else
-    echo "Error: Database backup failed!"
+    echo "Error: Database backup failed or created an empty file!"
+    rm -f "$BACKUP_FILE"
     exit 1
 fi
 
 echo "=========================================="
-echo "Backup process finished."
+echo "Backup process finished successfully."
 echo "=========================================="
+

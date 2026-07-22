@@ -5,11 +5,19 @@ services:
     container_name: ${APP_NAME}-nginx
     ports:
       - "${APP_PORT}:80"
+      # - "${APP_SSL_PORT:-443}:443"
     volumes:
       - ${APP_PATH}:/var/www/html:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # - ./nginx/certs:/etc/nginx/certs:ro
     depends_on:
-      - php
+      php:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:80/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     networks:
       - app-network
     restart: always
@@ -24,6 +32,11 @@ services:
       - TZ=${SYSTEM_TIMEZONE}
     volumes:
       - ${APP_PATH}:/var/www/html
+    healthcheck:
+      test: ["CMD-SHELL", "cgi-fcgi -bind -connect 127.0.0.1:9000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     networks:
       - app-network
     restart: always
@@ -40,6 +53,11 @@ services:
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
       TZ: ${SYSTEM_TIMEZONE}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     volumes:
       - db_data:/var/lib/mysql
     networks:
@@ -57,8 +75,28 @@ services:
   #     POSTGRES_USER: ${DB_USER}
   #     POSTGRES_PASSWORD: ${DB_PASSWORD}
   #     TZ: ${SYSTEM_TIMEZONE}
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 3
   #   volumes:
   #     - pg_data:/var/lib/postgresql
+  #   networks:
+  #     - app-network
+  #   restart: always
+
+  # Redis In-Memory Data Store (Optional)
+  # redis:
+  #   image: redis:alpine
+  #   container_name: ${APP_NAME}-redis
+  #   ports:
+  #     - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 3
   #   networks:
   #     - app-network
   #   restart: always
@@ -74,7 +112,8 @@ services:
   #     PMA_PORT: 3306 # Internal Docker communication remains 3306
   #     PMA_ARBITRARY: 1
   #   depends_on:
-  #     - mariadb
+  #     mariadb:
+  #       condition: service_healthy
   #   networks:
   #     - app-network
   #   restart: always
@@ -92,7 +131,8 @@ services:
   #   volumes:
   #     - pgadmin_data:/var/lib/pgadmin
   #   depends_on:
-  #     - postgres
+  #     postgres:
+  #       condition: service_healthy
   #   networks:
   #     - app-network
   #   restart: always
@@ -109,3 +149,4 @@ volumes:
   #   name: ${APP_NAME}-pg-data
   # pgadmin_data:
   #   name: ${APP_NAME}-pgadmin-data
+
