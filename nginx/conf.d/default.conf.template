@@ -1,14 +1,20 @@
 # ==========================================
-# 1. Dynamic Domain Routing (*.php82.test)
+# 1. Dynamic Domain Routing (*.php82.test) - HTTP & HTTPS
 # ==========================================
 server {
     listen 80;
+    listen 443 ssl;
     server_name ~^(?<project>.+)\.php82\.test$;
+
+    ssl_certificate /etc/nginx/certs/local-dev.crt;
+    ssl_certificate_key /etc/nginx/certs/local-dev.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
 
     # Default to project root
     set $project_root /var/www/html/$project;
 
-    # Smart Laravel / Framework project detection
+    # Smart Framework / Laravel project detection
     if (-d /var/www/html/$project/public) {
         set $project_root /var/www/html/$project/public;
     }
@@ -17,9 +23,6 @@ server {
     }
     if (-f /var/www/html/$project/index.php) {
         set $project_root /var/www/html/$project;
-    }
-    if (-f /var/www/html/$project/artisan) {
-        set $project_root /var/www/html/$project/public;
     }
 
     root $project_root;
@@ -45,16 +48,22 @@ server {
 }
 
 # ==========================================
-# 2. Dynamic Domain Routing (*.php83.test)
+# 2. Dynamic Domain Routing (*.php83.test) - HTTP & HTTPS
 # ==========================================
 server {
     listen 80;
+    listen 443 ssl;
     server_name ~^(?<project>.+)\.php83\.test$;
+
+    ssl_certificate /etc/nginx/certs/local-dev.crt;
+    ssl_certificate_key /etc/nginx/certs/local-dev.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
 
     # Default to project root
     set $project_root /var/www/html/$project;
 
-    # Smart Laravel / Framework project detection
+    # Smart Framework / Laravel project detection
     if (-d /var/www/html/$project/public) {
         set $project_root /var/www/html/$project/public;
     }
@@ -63,9 +72,6 @@ server {
     }
     if (-f /var/www/html/$project/index.php) {
         set $project_root /var/www/html/$project;
-    }
-    if (-f /var/www/html/$project/artisan) {
-        set $project_root /var/www/html/$project/public;
     }
 
     root $project_root;
@@ -118,9 +124,6 @@ server {
         # 2. Framework detection (Laravel artisan or public/index.php)
         set $use_public "0";
         if (-d /var/www/html/$project_name/public) {
-            set $use_public "1";
-        }
-        if (-f /var/www/html/$project_name/artisan) {
             set $use_public "1";
         }
         if (-f /var/www/html/$project_name/index.php) {
@@ -180,9 +183,6 @@ server {
         if (-d /var/www/html/$project_name/public) {
             set $use_public "1";
         }
-        if (-f /var/www/html/$project_name/artisan) {
-            set $use_public "1";
-        }
         if (-f /var/www/html/$project_name/index.php) {
             set $use_public "0";
         }
@@ -222,9 +222,6 @@ server {
     if (-d /var/www/html/${TAILSCALE_PROJECT_PATH}/public) {
         set $tailscale_root /var/www/html/${TAILSCALE_PROJECT_PATH}/public;
     }
-    if (-f /var/www/html/${TAILSCALE_PROJECT_PATH}/artisan) {
-        set $tailscale_root /var/www/html/${TAILSCALE_PROJECT_PATH}/public;
-    }
     if (-f /var/www/html/${TAILSCALE_PROJECT_PATH}/index.php) {
         set $tailscale_root /var/www/html/${TAILSCALE_PROJECT_PATH};
     }
@@ -251,4 +248,3 @@ server {
     location = /robots.txt  { access_log off; log_not_found off; }
     location ~ /\.(?!well-known).* { deny all; }
 }
-

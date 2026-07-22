@@ -5,6 +5,7 @@ services:
     container_name: local-nginx
     ports:
       - "${NGINX_PORT_HTTP}:80"
+      - "${NGINX_PORT_HTTPS}:443"
       - "${NGINX_PORT_PHP82}:8082"
       - "${NGINX_PORT_PHP83}:8083"
     environment:
@@ -14,6 +15,7 @@ services:
     volumes:
       - ${PROJECTS_PATH}:/var/www/html:ro
       - ./nginx/conf.d:/etc/nginx/templates:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
     depends_on:
       - php82
       - php83
@@ -85,6 +87,43 @@ services:
       - local-network
     restart: unless-stopped
 
+  # Redis Service
+  redis:
+    image: redis:alpine
+    container_name: local-redis
+    ports:
+      - "127.0.0.1:${REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - local-network
+    restart: unless-stopped
+
+  # Redis Commander (Web UI for Redis)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: local-redis-commander
+    ports:
+      - "127.0.0.1:${REDIS_COMMANDER_PORT}:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - local-network
+    restart: unless-stopped
+
+  # Mailpit (Web UI & SMTP tool for Email Testing)
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: local-mailpit
+    ports:
+      - "127.0.0.1:${MAILPIT_PORT_UI}:8025"
+      - "127.0.0.1:${MAILPIT_PORT_SMTP}:1025"
+    networks:
+      - local-network
+    restart: unless-stopped
+
   # phpMyAdmin (Web administration tool for MariaDB)
   phpmyadmin:
     image: phpmyadmin:latest
@@ -129,5 +168,7 @@ volumes:
     name: local-mariadb-data
   postgres_data:
     name: local-postgres-data
+  redis_data:
+    name: local-redis-data
   pgadmin_data:
     name: local-pgadmin-data
