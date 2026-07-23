@@ -105,12 +105,14 @@ All PHP containers are pre-configured with Xdebug. By default, `XDEBUG_MODE=off`
    Running `./dev up` or `./dev ssl` automatically detects if `mkcert` is installed:
    - **With `mkcert`**: Generates browser-trusted certificates in `./nginx/certs/`.
    - **Without `mkcert`**: Generates self-signed certificates.
-2. **Enable Trusted Certificates**:
+2. **Enable Trusted Certificates (One-Time Setup)**:
    Install `mkcert` on your host machine and run:
    ```bash
    mkcert -install
    ./dev ssl
    ```
+   > [!NOTE]
+   > `mkcert -install` is a **one-time setup per machine**. Once configured, the generated wildcard SSL certificate (`*.test`) automatically secures all current and future projects accessed via `https://*.test` without needing to re-run the setup.
 
 ### Automatic Wildcard Local DNS (`*.test`)
 1. **Host Setup**:
