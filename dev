@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+# Default Docker Compose build parallelism to 1 to prevent CPU/RAM thrashing
+export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-1}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CERTS_DIR="${SCRIPT_DIR}/nginx/certs"
 PROJECTS_DIR="${SCRIPT_DIR}/projects"

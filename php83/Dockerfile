@@ -1,10 +1,10 @@
 FROM php:8.3-fpm
 
 # Install system dependencies & PHP extensions using the official extension installer helper
-ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+RUN curl -sSLf -o /usr/local/bin/install-php-extensions https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions && \
+    chmod +x /usr/local/bin/install-php-extensions && \
+    install-php-extensions gd zip intl mysqli pdo_mysql pdo_pgsql pgsql opcache redis pcntl bcmath exif soap xdebug
 
-RUN chmod +x /usr/local/bin/install-php-extensions && \
-    install-php-extensions gd zip intl mysqli pdo_mysql pdo_pgsql pgsql opcache redis pcntl bcmath exif soap imagick xdebug
 
 # Install Node.js, npm, git, unzip
 RUN apt-get update && apt-get install -y nodejs npm git unzip && rm -rf /var/lib/apt/lists/*
