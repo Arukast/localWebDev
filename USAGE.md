@@ -28,10 +28,11 @@ Detailed instructions for installing, configuring, running, and using localDev.
    *(To start optional Web GUIs, Meilisearch, and MinIO: `./dev up --tools`)*
 
 3. **Check the Dashboard / Port Fallbacks**:
-   - Default PHP (8.4): [https://my-app.test](https://my-app.test) or [http://localhost:8084](http://localhost:8084)
-   - PHP 8.3: [https://my-app.php83.test](https://my-app.php83.test) or [http://localhost:8083](http://localhost:8083)
-   - PHP 8.2: [https://my-app.php82.test](https://my-app.php82.test) or [http://localhost:8082](http://localhost:8082)
-   - PHP 8.5: [https://my-app.php85.test](https://my-app.php85.test) or [http://localhost:8085](http://localhost:8085)
+   - Default Primary PHP (`*.test`): Configurable via `DEFAULT_PHP_VERSION` in `.env` (defaults to `php85`).
+   - PHP 8.5: [https://my-app.test](https://my-app.test) (or [http://localhost:8085](http://localhost:8085))
+   - PHP 8.4: [https://my-app.php84.test](https://my-app.php84.test) (or [http://localhost:8084](http://localhost:8084))
+   - PHP 8.3: [https://my-app.php83.test](https://my-app.php83.test) (or [http://localhost:8083](http://localhost:8083))
+   - PHP 8.2: [https://my-app.php82.test](https://my-app.php82.test) (or [http://localhost:8082](http://localhost:8082))
    - Mailpit Email UI: [http://localhost:8025](http://localhost:8025)
 
 > [!NOTE]

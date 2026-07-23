@@ -1,5 +1,5 @@
 # ==========================================
-# 0. Wildcard Domain Routing (*.test) -> Default PHP 8.4
+# 0. Wildcard Domain Routing (*.test) -> Default PHP 8.5 (Latest Stable)
 # ==========================================
 server {
     listen 80;
@@ -38,7 +38,7 @@ server {
     location = /robots.txt  { access_log off; log_not_found off; }
 
     location ~ \.php$ {
-        fastcgi_pass php84:9000;
+        fastcgi_pass ${DEFAULT_PHP_VERSION}:9000;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         include fastcgi_params;

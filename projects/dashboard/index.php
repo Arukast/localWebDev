@@ -58,11 +58,13 @@ $pgadmin_online = check_tcp_service('pgadmin', 80);
 $redis_cmd_online = check_tcp_service('redis-commander', 8081);
 
 // 2. PHP Runtimes Status
+$default_php_container = getenv('DEFAULT_PHP_VERSION') ?: 'php85';
+
 $runtimes = [
-    'php85' => ['name' => 'PHP 8.5', 'host' => 'php85', 'port' => 9000, 'http_port' => 8085, 'domain_suffix' => '.php85.test'],
-    'php84' => ['name' => 'PHP 8.4', 'host' => 'php84', 'port' => 9000, 'http_port' => 8084, 'domain_suffix' => '.test'],
-    'php83' => ['name' => 'PHP 8.3', 'host' => 'php83', 'port' => 9000, 'http_port' => 8083, 'domain_suffix' => '.php83.test'],
-    'php82' => ['name' => 'PHP 8.2', 'host' => 'php82', 'port' => 9000, 'http_port' => 8082, 'domain_suffix' => '.php82.test'],
+    'php85' => ['name' => 'PHP 8.5', 'host' => 'php85', 'port' => 9000, 'http_port' => 8085, 'domain_suffix' => ($default_php_container === 'php85') ? '.test' : '.php85.test'],
+    'php84' => ['name' => 'PHP 8.4', 'host' => 'php84', 'port' => 9000, 'http_port' => 8084, 'domain_suffix' => ($default_php_container === 'php84') ? '.test' : '.php84.test'],
+    'php83' => ['name' => 'PHP 8.3', 'host' => 'php83', 'port' => 9000, 'http_port' => 8083, 'domain_suffix' => ($default_php_container === 'php83') ? '.test' : '.php83.test'],
+    'php82' => ['name' => 'PHP 8.2', 'host' => 'php82', 'port' => 9000, 'http_port' => 8082, 'domain_suffix' => ($default_php_container === 'php82') ? '.test' : '.php82.test'],
 ];
 
 $runtime_statuses = [];
@@ -614,10 +616,9 @@ usort($projects, function($a, $b) {
                                 <div class="project-links">
                                     <div class="link-group">
                                         <span class="link-group-title">Wildcard Domain</span>
-                                        <a href="http://<?= htmlspecialchars($proj['name']) ?>.php85.test/" class="project-link link-php85" target="_blank">PHP 8.5</a>
-                                        <a href="http://<?= htmlspecialchars($proj['name']) ?>.test/" class="project-link link-php84" target="_blank">8.4</a>
-                                        <a href="http://<?= htmlspecialchars($proj['name']) ?>.php83.test/" class="project-link link-php83" target="_blank">8.3</a>
-                                        <a href="http://<?= htmlspecialchars($proj['name']) ?>.php82.test/" class="project-link link-php82" target="_blank">8.2</a>
+                                        <?php foreach ($runtimes as $rt_key => $rt_val): ?>
+                                            <a href="http://<?= htmlspecialchars($proj['name']) ?><?= $rt_val['domain_suffix'] ?>/" class="project-link link-<?= $rt_key ?>" target="_blank"><?= htmlspecialchars($rt_val['name']) ?></a>
+                                        <?php endforeach; ?>
                                     </div>
                                     <div class="link-group">
                                         <span class="link-group-title">Port Fallback</span>
