@@ -1,9 +1,11 @@
 # Ignore local environment variables containing passwords
 .env
 
-# Ignore all user projects, but keep our diagnostic landing page
+# Ignore all user projects, but keep our diagnostic landing page & dashboard
 projects/*
 !projects/index.php
+!projects/dashboard/
+!projects/dashboard/**
 
 repomix-output.xml
 # Ignore local generated SSL certificates & keys

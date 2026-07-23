@@ -102,10 +102,10 @@ foreach ($services as $key => $info) {
 
 // 2. PHP Runtimes Status & Xdebug Checks
 $runtimes = [
+    'php85' => ['name' => 'PHP 8.5 (Experimental)', 'host' => 'php85', 'port' => 9000, 'http_port' => 8085],
     'php84' => ['name' => 'PHP 8.4 (Default)', 'host' => 'php84', 'port' => 9000, 'http_port' => 8084],
     'php83' => ['name' => 'PHP 8.3', 'host' => 'php83', 'port' => 9000, 'http_port' => 8083],
     'php82' => ['name' => 'PHP 8.2', 'host' => 'php82', 'port' => 9000, 'http_port' => 8082],
-    'php85' => ['name' => 'PHP 8.5 (Experimental)', 'host' => 'php85', 'port' => 9000, 'http_port' => 8085],
 ];
 
 $runtime_statuses = [];
@@ -134,7 +134,7 @@ $projects = [];
 if (is_dir($projects_dir)) {
     $items = scandir($projects_dir);
     foreach ($items as $item) {
-        if ($item === '.' || $item === '..' || strpos($item, '.') === 0) {
+        if ($item === '.' || $item === '..' || $item === 'dashboard' || strpos($item, '.') === 0) {
             continue;
         }
 
@@ -159,17 +159,17 @@ if (is_dir($projects_dir)) {
                 'framework' => $framework,
                 'has_public' => $has_public,
                 'domains' => [
+                    'php85' => "http://{$item}.php85.test",
                     'default' => "http://{$item}.test",
                     'default_ssl' => "https://{$item}.test",
                     'php83' => "http://{$item}.php83.test",
                     'php82' => "http://{$item}.php82.test",
-                    'php85' => "http://{$item}.php85.test",
                 ],
                 'fallback_urls' => [
+                    'php85' => "http://localhost:8085/{$item}",
                     'php84' => "http://localhost:8084/{$item}",
                     'php83' => "http://localhost:8083/{$item}",
                     'php82' => "http://localhost:8082/{$item}",
-                    'php85' => "http://localhost:8085/{$item}",
                 ],
                 'updated_at' => filemtime($full_path)
             ];
