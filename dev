@@ -47,7 +47,9 @@ generate_ssl() {
     if command -v mkcert &> /dev/null; then
         echo "🔒 Using mkcert to generate trusted local SSL certificates..."
         mkcert -cert-file "$CERTS_DIR/local-dev.crt" -key-file "$CERTS_DIR/local-dev.key" \
-            "*.php82.test" "*.php83.test" "*.php84.test" "*.php85.test" "*.test" localhost 127.0.0.1 ::1
+            "*.php82.test" "*.php83.test" "*.php84.test" "*.php85.test" "*.test" \
+            "dashboard.test" "dashboard.php82.test" "dashboard.php83.test" "dashboard.php84.test" "dashboard.php85.test" \
+            localhost 127.0.0.1 ::1
         echo "✅ Trusted SSL certificates generated at nginx/certs/"
     else
         echo "⚠️ mkcert not found on host system. Falling back to OpenSSL self-signed certificate..."
