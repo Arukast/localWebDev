@@ -6,8 +6,11 @@ RUN curl -sSLf -o /usr/local/bin/install-php-extensions https://github.com/mloca
     install-php-extensions gd zip intl mysqli pdo_mysql pdo_pgsql pgsql opcache redis pcntl bcmath exif soap xdebug || true
 
 
-# Install Node.js, npm, git, unzip
-RUN apt-get update && apt-get install -y nodejs npm git unzip && rm -rf /var/lib/apt/lists/*
+# Install Node.js & npm (copied from official Node image) + git, unzip
+COPY --from=node:lts-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:lts-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
+    apt-get update && apt-get install -y git unzip && rm -rf /var/lib/apt/lists/*
 
 # Install Composer permanently
 COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
