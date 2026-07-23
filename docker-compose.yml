@@ -6,8 +6,8 @@ services:
       dockerfile: Dockerfile
     container_name: local-dnsmasq
     ports:
-      - "127.0.0.1:${DNSMASQ_PORT:-5353}:53/udp"
-      - "127.0.0.1:${DNSMASQ_PORT:-5353}:53/tcp"
+      - "127.0.0.1:${DNSMASQ_PORT:-5354}:53/udp"
+      - "127.0.0.1:${DNSMASQ_PORT:-5354}:53/tcp"
     healthcheck:
       test: ["CMD-SHELL", "nc -z -w1 127.0.0.1 53 || exit 0"]
       interval: 10s

@@ -118,12 +118,21 @@ create_db_if_not_exists() {
     fi
 }
 
+get_dnsmasq_port() {
+    local port=""
+    if [[ -f "${SCRIPT_DIR}/.env" ]]; then
+        port="$(grep -E '^DNSMASQ_PORT=' "${SCRIPT_DIR}/.env" | cut -d '=' -f2 | tr -d ' "')"
+    fi
+    echo "${port:-5354}"
+}
+
 # Setup local DNS resolution (*.test)
 setup_dns() {
     echo "🌐 Setting up local DNS resolution for *.test domains..."
     
-    local os
+    local os dns_port
     os="$(uname -s)"
+    dns_port="$(get_dnsmasq_port)"
     
     if [[ "$os" == "Linux" ]]; then
         if systemctl is-active --quiet systemd-resolved 2>/dev/null || systemctl is-enabled --quiet systemd-resolved 2>/dev/null; then
@@ -131,7 +140,7 @@ setup_dns() {
             sudo mkdir -p /etc/systemd/resolved.conf.d
             cat <<EOF | sudo tee /etc/systemd/resolved.conf.d/localdev.conf > /dev/null
 [Resolve]
-DNS=127.0.0.1:5353
+DNS=127.0.0.1:${dns_port}
 Domains=~test
 EOF
             echo "🔄 Restarting systemd-resolved service..."
@@ -141,19 +150,19 @@ EOF
             echo "🔧 Configuring NetworkManager dnsmasq plugin for *.test domains..."
             echo -e "[main]\ndns=dnsmasq" | sudo tee /etc/NetworkManager/conf.d/00-use-dnsmasq.conf > /dev/null
             sudo mkdir -p /etc/NetworkManager/dnsmasq.d
-            echo "server=/test/127.0.0.1#5353" | sudo tee /etc/NetworkManager/dnsmasq.d/localdev.conf > /dev/null
+            echo "server=/test/127.0.0.1#${dns_port}" | sudo tee /etc/NetworkManager/dnsmasq.d/localdev.conf > /dev/null
             sudo systemctl restart NetworkManager
             echo "✅ NetworkManager configured successfully!"
         else
             echo "⚠️ Could not auto-detect systemd-resolved or NetworkManager."
-            echo "💡 Please add 'nameserver 127.0.0.1' or point port 5353 in your resolver configuration."
+            echo "💡 Please add 'nameserver 127.0.0.1' or point port ${dns_port} in your resolver configuration."
         fi
     elif [[ "$os" == "Darwin" ]]; then
         echo "🔧 Configuring macOS resolver for *.test domains..."
         sudo mkdir -p /etc/resolver
         cat <<EOF | sudo tee /etc/resolver/test > /dev/null
 nameserver 127.0.0.1
-port 5353
+port ${dns_port}
 EOF
         echo "✅ macOS resolver created at /etc/resolver/test!"
     else
@@ -169,17 +178,19 @@ check_dns_status() {
     echo "🔍 Checking *.test DNS resolution status..."
     local test_domain="localdev-test.test"
     local resolved_ip=""
+    local dns_port
+    dns_port="$(get_dnsmasq_port)"
 
     if command -v dig &>/dev/null; then
-        resolved_ip="$(dig +short @127.0.0.1 -p 5353 "$test_domain" 2>/dev/null | tail -n1)"
+        resolved_ip="$(dig +short @127.0.0.1 -p ${dns_port} "$test_domain" 2>/dev/null | tail -n1)"
     elif command -v nslookup &>/dev/null; then
-        resolved_ip="$(nslookup -port=5353 "$test_domain" 127.0.0.1 2>/dev/null | grep -A1 "Name:" | grep "Address:" | awk '{print $2}')"
+        resolved_ip="$(nslookup -port=${dns_port} "$test_domain" 127.0.0.1 2>/dev/null | grep -A1 "Name:" | grep "Address:" | awk '{print $2}')"
     fi
 
     if [[ "$resolved_ip" == "127.0.0.1" ]]; then
-        echo "✅ Dnsmasq container (127.0.0.1:5353) is resolving *.test domains correctly to 127.0.0.1"
+        echo "✅ Dnsmasq container (127.0.0.1:${dns_port}) is resolving *.test domains correctly to 127.0.0.1"
     else
-        echo "⚠️ Direct query to Dnsmasq container (127.0.0.1:5353) returned: '${resolved_ip:-no response}'"
+        echo "⚠️ Direct query to Dnsmasq container (127.0.0.1:${dns_port}) returned: '${resolved_ip:-no response}'"
         echo "💡 Make sure containers are started with './dev up'."
     fi
 
