@@ -34,6 +34,9 @@ Detailed instructions for installing, configuring, running, and using localDev.
    - PHP 8.5: [https://my-app.php85.test](https://my-app.php85.test) or [http://localhost:8085](http://localhost:8085)
    - Mailpit Email UI: [http://localhost:8025](http://localhost:8025)
 
+> [!NOTE]
+> **Port Fallbacks vs `.test` Domains**: Port fallbacks (e.g. `http://localhost:8084`) serve the raw projects directory (`/var/www/html`) for plain PHP or quick access. **Laravel applications and framework projects must be accessed via their `.test` domains** (e.g. `http://my-app.test` or `http://my-app.php83.test`), as domain routing automatically handles public directory mapping (`/public`) and `artisan` routing.
+
 ---
 
 ## CLI Helper (`./dev`) Reference
@@ -72,10 +75,10 @@ The environment includes a unified `./dev` executable script to simplify daily d
 | :--- | :--- | :--- | :--- | :--- |
 | **Nginx (HTTP)** | `http://localhost` (Port 80) | 80 | `default` | Reverse proxy for `*.test` HTTP domains |
 | **Nginx (HTTPS)** | `https://*.test` (Port 443) | 443 | `default` | Reverse proxy for `*.test` HTTPS domains |
-| **PHP 8.4 Port** | `http://localhost:8084` | 8084 | `default` | Runs projects on PHP 8.4 (Default) |
-| **PHP 8.3 Port** | `http://localhost:8083` | 8083 | `default` | Runs projects on PHP 8.3 |
-| **PHP 8.2 Port** | `http://localhost:8082` | 8082 | `default` | Runs projects on PHP 8.2 |
-| **PHP 8.5 Port** | `http://localhost:8085` | 8085 | `default` | Runs projects on PHP 8.5 (Experimental) |
+| **PHP 8.4 Port** | `http://localhost:8084` | 8084 | `default` | Port fallback for plain PHP on PHP 8.4 (Laravel: use `*.test`) |
+| **PHP 8.3 Port** | `http://localhost:8083` | 8083 | `default` | Port fallback for plain PHP on PHP 8.3 (Laravel: use `*.php83.test`) |
+| **PHP 8.2 Port** | `http://localhost:8082` | 8082 | `default` | Port fallback for plain PHP on PHP 8.2 (Laravel: use `*.php82.test`) |
+| **PHP 8.5 Port** | `http://localhost:8085` | 8085 | `default` | Port fallback for plain PHP on PHP 8.5 (Laravel: use `*.php85.test`) |
 | **Mailpit Web UI** | `http://localhost:8025` | 8025 | `default` | Web dashboard to inspect captured emails |
 | **Mailpit SMTP** | `127.0.0.1:1025` | 1025 | `default` | Local SMTP server for app emails |
 | **MariaDB Database**| `localhost:3306` | 3306 | `default` | MariaDB relational database |

@@ -236,43 +236,17 @@ server {
 }
 
 # =======================================================
-# 5. Port Fallback (PHP 8.2) - Handles Subfolders Cleanly
+# 5. Port Fallback (PHP 8.2) — Plain PHP / Quick Access
+#    Laravel projects: use pos_alja.php82.test instead
 # =======================================================
 server {
     listen 8082;
-    server_name localhost;
+    server_name _;
     root /var/www/html;
     index index.php index.html;
     charset utf-8;
 
     location / {
-        set $project_name "";
-        set $subpath "";
-
-        if ($uri ~ ^/([^/]+)(/.*)?$) {
-            set $project_name $1;
-            set $subpath $2;
-        }
-
-        if (-f /var/www/html/$project_name/public$subpath) {
-            rewrite ^/([^/]+)(/.*)?$ /$1/public$2 last;
-        }
-
-        set $use_public "0";
-        if (-d /var/www/html/$project_name/public) {
-            set $use_public "1";
-        }
-        if (-f /var/www/html/$project_name/index.php) {
-            set $use_public "0";
-        }
-        if (-f /var/www/html/$project_name/artisan) {
-            set $use_public "1";
-        }
-
-        if ($use_public = "1") {
-            rewrite ^/([^/]+)(/.*)?$ /$1/public/index.php?$query_string last;
-        }
-
         try_files $uri $uri/ /index.php?$query_string;
     }
 
@@ -289,43 +263,17 @@ server {
 }
 
 # =======================================================
-# 6. Port Fallback (PHP 8.3) - Handles Subfolders Cleanly
+# 6. Port Fallback (PHP 8.3) — Plain PHP / Quick Access
+#    Laravel projects: use pos_alja.php83.test instead
 # =======================================================
 server {
     listen 8083;
-    server_name localhost;
+    server_name _;
     root /var/www/html;
     index index.php index.html;
     charset utf-8;
 
     location / {
-        set $project_name "";
-        set $subpath "";
-
-        if ($uri ~ ^/([^/]+)(/.*)?$) {
-            set $project_name $1;
-            set $subpath $2;
-        }
-
-        if (-f /var/www/html/$project_name/public$subpath) {
-            rewrite ^/([^/]+)(/.*)?$ /$1/public$2 last;
-        }
-
-        set $use_public "0";
-        if (-d /var/www/html/$project_name/public) {
-            set $use_public "1";
-        }
-        if (-f /var/www/html/$project_name/index.php) {
-            set $use_public "0";
-        }
-        if (-f /var/www/html/$project_name/artisan) {
-            set $use_public "1";
-        }
-
-        if ($use_public = "1") {
-            rewrite ^/([^/]+)(/.*)?$ /$1/public/index.php?$query_string last;
-        }
-
         try_files $uri $uri/ /index.php?$query_string;
     }
 
@@ -342,43 +290,17 @@ server {
 }
 
 # =======================================================
-# 7. Port Fallback (PHP 8.4) - Handles Subfolders Cleanly
+# 7. Port Fallback (PHP 8.4) — Plain PHP / Quick Access
+#    Laravel projects: use pos_alja.php84.test instead
 # =======================================================
 server {
     listen 8084;
-    server_name localhost;
+    server_name _;
     root /var/www/html;
     index index.php index.html;
     charset utf-8;
 
     location / {
-        set $project_name "";
-        set $subpath "";
-
-        if ($uri ~ ^/([^/]+)(/.*)?$) {
-            set $project_name $1;
-            set $subpath $2;
-        }
-
-        if (-f /var/www/html/$project_name/public$subpath) {
-            rewrite ^/([^/]+)(/.*)?$ /$1/public$2 last;
-        }
-
-        set $use_public "0";
-        if (-d /var/www/html/$project_name/public) {
-            set $use_public "1";
-        }
-        if (-f /var/www/html/$project_name/index.php) {
-            set $use_public "0";
-        }
-        if (-f /var/www/html/$project_name/artisan) {
-            set $use_public "1";
-        }
-
-        if ($use_public = "1") {
-            rewrite ^/([^/]+)(/.*)?$ /$1/public/index.php?$query_string last;
-        }
-
         try_files $uri $uri/ /index.php?$query_string;
     }
 
@@ -395,43 +317,17 @@ server {
 }
 
 # =======================================================
-# 8. Port Fallback (PHP 8.5) - Handles Subfolders Cleanly
+# 8. Port Fallback (PHP 8.5) — Plain PHP / Quick Access
+#    Laravel projects: use pos_alja.php85.test instead
 # =======================================================
 server {
     listen 8085;
-    server_name localhost;
+    server_name _;
     root /var/www/html;
     index index.php index.html;
     charset utf-8;
 
     location / {
-        set $project_name "";
-        set $subpath "";
-
-        if ($uri ~ ^/([^/]+)(/.*)?$) {
-            set $project_name $1;
-            set $subpath $2;
-        }
-
-        if (-f /var/www/html/$project_name/public$subpath) {
-            rewrite ^/([^/]+)(/.*)?$ /$1/public$2 last;
-        }
-
-        set $use_public "0";
-        if (-d /var/www/html/$project_name/public) {
-            set $use_public "1";
-        }
-        if (-f /var/www/html/$project_name/index.php) {
-            set $use_public "0";
-        }
-        if (-f /var/www/html/$project_name/artisan) {
-            set $use_public "1";
-        }
-
-        if ($use_public = "1") {
-            rewrite ^/([^/]+)(/.*)?$ /$1/public/index.php?$query_string last;
-        }
-
         try_files $uri $uri/ /index.php?$query_string;
     }
 

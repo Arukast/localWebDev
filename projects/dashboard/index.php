@@ -614,17 +614,17 @@ usort($projects, function($a, $b) {
                                 <div class="project-links">
                                     <div class="link-group">
                                         <span class="link-group-title">Wildcard Domain</span>
-                                        <a href="http://<?= htmlspecialchars($proj['name']) ?>.php85.test/<?= $proj['suffix'] ?>" class="project-link link-php85" target="_blank">PHP 8.5</a>
-                                        <a href="http://<?= htmlspecialchars($proj['name']) ?>.test/<?= $proj['suffix'] ?>" class="project-link link-php84" target="_blank">8.4</a>
-                                        <a href="http://<?= htmlspecialchars($proj['name']) ?>.php83.test/<?= $proj['suffix'] ?>" class="project-link link-php83" target="_blank">8.3</a>
-                                        <a href="http://<?= htmlspecialchars($proj['name']) ?>.php82.test/<?= $proj['suffix'] ?>" class="project-link link-php82" target="_blank">8.2</a>
+                                        <a href="http://<?= htmlspecialchars($proj['name']) ?>.php85.test/" class="project-link link-php85" target="_blank">PHP 8.5</a>
+                                        <a href="http://<?= htmlspecialchars($proj['name']) ?>.test/" class="project-link link-php84" target="_blank">8.4</a>
+                                        <a href="http://<?= htmlspecialchars($proj['name']) ?>.php83.test/" class="project-link link-php83" target="_blank">8.3</a>
+                                        <a href="http://<?= htmlspecialchars($proj['name']) ?>.php82.test/" class="project-link link-php82" target="_blank">8.2</a>
                                     </div>
                                     <div class="link-group">
                                         <span class="link-group-title">Port Fallback</span>
-                                        <a href="http://localhost:8085/<?= htmlspecialchars($proj['name']) ?>/<?= $proj['suffix'] ?>" class="project-link link-php85" target="_blank">:8085</a>
-                                        <a href="http://localhost:8084/<?= htmlspecialchars($proj['name']) ?>/<?= $proj['suffix'] ?>" class="project-link link-php84" target="_blank">:8084</a>
-                                        <a href="http://localhost:8083/<?= htmlspecialchars($proj['name']) ?>/<?= $proj['suffix'] ?>" class="project-link link-php83" target="_blank">:8083</a>
-                                        <a href="http://localhost:8082/<?= htmlspecialchars($proj['name']) ?>/<?= $proj['suffix'] ?>" class="project-link link-php82" target="_blank">:8082</a>
+                                        <a href="http://localhost:8085/<?= htmlspecialchars($proj['name']) ?>/" class="project-link link-php85" target="_blank">:8085</a>
+                                        <a href="http://localhost:8084/<?= htmlspecialchars($proj['name']) ?>/" class="project-link link-php84" target="_blank">:8084</a>
+                                        <a href="http://localhost:8083/<?= htmlspecialchars($proj['name']) ?>/" class="project-link link-php83" target="_blank">:8083</a>
+                                        <a href="http://localhost:8082/<?= htmlspecialchars($proj['name']) ?>/" class="project-link link-php82" target="_blank">:8082</a>
                                     </div>
                                 </div>
                             </div>

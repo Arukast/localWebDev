@@ -129,13 +129,23 @@ get_dnsmasq_port() {
 # Setup local DNS resolution (*.test)
 setup_dns() {
     echo "🌐 Setting up local DNS resolution for *.test domains..."
-    
-    local os dns_port
+
+    local os dns_port resolved_service
     os="$(uname -s)"
     dns_port="$(get_dnsmasq_port)"
-    
+
     if [[ "$os" == "Linux" ]]; then
-        if systemctl is-active --quiet systemd-resolved 2>/dev/null || systemctl is-enabled --quiet systemd-resolved 2>/dev/null; then
+        # Detect systemd-resolved by service file existence (works even when disabled)
+        resolved_service=""
+        for f in /lib/systemd/system/systemd-resolved.service \
+                  /usr/lib/systemd/system/systemd-resolved.service; do
+            if [[ -f "$f" ]]; then
+                resolved_service="$f"
+                break
+            fi
+        done
+
+        if [[ -n "$resolved_service" ]]; then
             echo "🔧 Configuring systemd-resolved for *.test domains..."
             sudo mkdir -p /etc/systemd/resolved.conf.d
             cat <<EOF | sudo tee /etc/systemd/resolved.conf.d/localdev.conf > /dev/null
@@ -143,8 +153,13 @@ setup_dns() {
 DNS=127.0.0.1:${dns_port}
 Domains=~test
 EOF
-            echo "🔄 Restarting systemd-resolved service..."
+            echo "🔄 Enabling and restarting systemd-resolved..."
+            sudo systemctl enable --now systemd-resolved 2>/dev/null || true
             sudo systemctl restart systemd-resolved
+            # Point resolv.conf at systemd-resolved's stub listener
+            if [[ -e /run/systemd/resolve/stub-resolv.conf ]]; then
+                sudo ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+            fi
             echo "✅ systemd-resolved configured successfully for *.test domains!"
         elif [[ -d /etc/NetworkManager/conf.d ]]; then
             echo "🔧 Configuring NetworkManager dnsmasq plugin for *.test domains..."
