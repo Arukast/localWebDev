@@ -572,7 +572,7 @@ show_help() {
     echo "Default PHP version for versioned commands: $(default_php_version) (set DEFAULT_PHP_VERSION in .env)"
     echo ""
     echo "Docker Controls:"
-    echo "  up [--tools|--all]      Start Docker containers (runs core by default, --tools enables Web GUIs/Meili/MinIO)"
+    echo "  up [--tools|--all]      Start Docker containers (runs core by default, --tools enables Web GUIs & Meilisearch)"
     echo "  down                    Stop Docker containers"
     echo "  restart [service]       Restart containers"
     echo "  logs [-f] [service]     View container logs"

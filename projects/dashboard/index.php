@@ -52,7 +52,6 @@ try {
 $redis_online = check_tcp_service('redis', 6379);
 $mailpit_online = check_tcp_service('mailpit', 8025);
 $meilisearch_online = check_tcp_service('meilisearch', 7700);
-$minio_online = check_tcp_service('minio', 9000);
 $phpmyadmin_online = check_tcp_service('phpmyadmin', 80);
 $pgadmin_online = check_tcp_service('pgadmin', 80);
 $redis_cmd_online = check_tcp_service('redis-commander', 8081);
@@ -205,15 +204,6 @@ usort($projects, function($a, $b) {
                         </div>
                         <div class="service-meta">Port 7700 &bull; Search</div>
                     </div>
-
-                    <!-- MinIO -->
-                    <div class="service-card">
-                        <div class="service-name">MinIO S3 Storage</div>
-                        <div class="status-badge <?= $minio_online ? 'online' : 'offline' ?>">
-                            <span class="dot"></span> <?= $minio_online ? 'Online' : 'Offline' ?>
-                        </div>
-                        <div class="service-meta">Port 9000 &bull; Console 9001</div>
-                    </div>
                 </div>
             </div>
 
@@ -315,13 +305,6 @@ usort($projects, function($a, $b) {
                             <p>Manage Redis keys & caching</p>
                         </div>
                         <span class="tool-link-btn">Open: 8086</span>
-                    </a>
-                    <a href="http://localhost:9001" target="_blank" class="tool-item">
-                        <div class="tool-info">
-                            <h4>MinIO Console</h4>
-                            <p>Local S3 object storage dashboard</p>
-                        </div>
-                        <span class="tool-link-btn">Open: 9001</span>
                     </a>
                 </div>
             </div>

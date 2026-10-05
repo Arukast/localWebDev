@@ -386,33 +386,6 @@ services:
       - local-network
     restart: unless-stopped
 
-  # MinIO (S3-Compatible Object Storage)
-  minio:
-    profiles: ["tools"]
-    image: minio/minio:latest
-    container_name: local-minio
-    command: server /data --console-address ":9001"
-    ports:
-      - "127.0.0.1:${MINIO_PORT:-9000}:9000"
-      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-    volumes:
-      - minio_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:9000/minio/health/live || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          memory: ${MINIO_MEM_LIMIT:-512m}
-    networks:
-      - local-network
-    restart: unless-stopped
-
 networks:
   local-network:
     name: local-dev-network
@@ -429,5 +402,3 @@ volumes:
     name: local-pgadmin-data
   meilisearch_data:
     name: local-meilisearch-data
-  minio_data:
-    name: local-minio-data

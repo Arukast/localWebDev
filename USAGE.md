@@ -25,7 +25,7 @@ Detailed instructions for installing, configuring, running, and using localDev.
    ```bash
    ./dev up
    ```
-   *(To start optional Web GUIs, Meilisearch, and MinIO: `./dev up --tools`)*
+   *(To start optional Web GUIs and Meilisearch: `./dev up --tools`)*
 
 3. **Check the Dashboard / Port Fallbacks**:
    - Default Primary PHP (`*.test`): Configurable via `DEFAULT_PHP_VERSION` in `.env` (defaults to `php85`). The same setting drives the default version for `./dev composer|php|npm|npx|node|artisan|new`.
@@ -93,7 +93,6 @@ The environment includes a unified `./dev` executable script to simplify daily d
 | **pgAdmin 4** | `http://localhost:8081` | 80 | `tools` | Web UI for PostgreSQL |
 | **Redis Commander** | `http://localhost:8086` | 8081 | `tools` | Web UI for Redis cache |
 | **Meilisearch** | `http://localhost:7700` | 7700 | `tools` | Fast search engine service |
-| **MinIO API / Console** | `http://localhost:9000` / `9001` | 9000/9001 | `tools` | Local S3-compatible object storage |
 
 ---
 

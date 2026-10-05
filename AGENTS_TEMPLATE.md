@@ -44,7 +44,7 @@ Before ending a session, the agent must perform these tasks:
 ### 2.1 Framework & Core Stack
 * Docker Compose multi-container development environment.
 * PHP (8.2, 8.3, 8.4, 8.5) + Nginx reverse proxy + Dnsmasq DNS resolver (`*.test`).
-* MariaDB, PostgreSQL, Redis, Mailpit, Meilisearch, MinIO.
+* MariaDB, PostgreSQL, Redis, Mailpit, Meilisearch.
 
 ### 2.2 Directory Layout & Component Roles
 * `dev`: Primary CLI control script.

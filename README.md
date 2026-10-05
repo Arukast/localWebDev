@@ -15,7 +15,7 @@ Instead of polluting your host operating system with conflicting PHP, Node.js, o
 ## Core Capabilities
 
 - **Multi-Version PHP Runtime**: Run legacy and modern PHP applications side-by-side using isolated PHP 8.2, PHP 8.3, PHP 8.4, and PHP 8.5 containers.
-- **Polyglot Database Engine**: Built-in support for MariaDB, PostgreSQL, Redis, Meilisearch, and MinIO object storage.
+- **Polyglot Database Engine**: Built-in support for MariaDB, PostgreSQL, Redis, and Meilisearch.
 - **Zero-Configuration HTTPS & DNS**: Automatic local wildcard SSL certificate generation (`*.test`) and OS-level DNS routing via integrated `dnsmasq`.
 - **Integrated Mail & Debugging**: Intercept local outgoing emails using Mailpit and debug applications with native Xdebug support on demand.
 - **Unified Developer CLI**: Manage services, scaffold projects, perform database operations, and create state snapshots using `./dev`.
@@ -29,7 +29,7 @@ Instead of polluting your host operating system with conflicting PHP, Node.js, o
 #### Context
 A developer handles three simultaneous active client projects:
 1. **Legacy E-Commerce System**: Requires PHP 8.2 and MariaDB.
-2. **Modern SaaS Application**: Built on Laravel using PHP 8.4, PostgreSQL, Redis, Meilisearch, and S3 file uploads.
+2. **Modern SaaS Application**: Built on Laravel using PHP 8.4, PostgreSQL, Redis, and Meilisearch.
 3. **Internal R&D Tool**: Experiments with PHP 8.5 features.
 
 #### Problem with Traditional Stacks (XAMPP / Native Homebrew / MacPorts)
@@ -41,7 +41,7 @@ A developer handles three simultaneous active client projects:
 #### Solution with `localDev`
 - **Side-by-Side Execution**: All PHP versions run simultaneously in separate containers. Route requests seamlessly via domain aliases (`my-app.test`, `my-app.php83.test`) or direct port mappings (`:8084`, `:8082`).
 - **Clean Isolation**: Host system stays completely clean. Tear down containers or create compressed state snapshots using `./dev snapshot save` without altering host state.
-- **Production Parity**: Environment mimics containerized production deployments with exact Nginx reverse proxy rules, isolated databases, and S3-compatible local MinIO storage.
+- **Production Parity**: Environment mimics containerized production deployments with exact Nginx reverse proxy rules and isolated databases.
 - **Safe Development**: Mailpit captures all outbound application mail safely in a local web interface (`http://localhost:8025`).
 
 ---
