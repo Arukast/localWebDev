@@ -51,3 +51,4 @@ A developer handles three simultaneous active client projects:
 For detailed operational guides, setup instructions, and CLI command references, refer to the following documentation files:
 
 - [Setup & Usage Guide](USAGE.md): Quick start steps, system requirements, CLI command reference, and port mappings.
+- [VPS Deployment Guide](vps/README.md): Run localDev on a VPS behind Cloudflare Tunnel, Nginx Proxy Manager, and Authentik.

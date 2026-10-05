@@ -1,6 +1,6 @@
 # ============================================================
 # localDev nginx routing (processed by envsubst at container start)
-# Substituted variables: ${DEFAULT_PHP_VERSION}, ${TAILSCALE_DOMAIN}, ${TAILSCALE_PROJECT_PATH}
+# Substituted variables: ${DEFAULT_PHP_VERSION}, ${DOMAIN_SUFFIX_REGEX}, ${TAILSCALE_DOMAIN}, ${TAILSCALE_PROJECT_PATH}
 # ============================================================
 
 # Docker embedded DNS. Required because fastcgi_pass backends are resolved
@@ -22,7 +22,7 @@ map $server_port $port_fpm {
 server {
     listen 80;
     listen 443 ssl;
-    server_name ~^(?<project>[^\.]+)\.test$;
+    server_name ~^(?<project>[^\.]+)\.${DOMAIN_SUFFIX_REGEX}$;
 
     ssl_certificate /etc/nginx/certs/local-dev.crt;
     ssl_certificate_key /etc/nginx/certs/local-dev.key;
@@ -40,7 +40,7 @@ server {
 server {
     listen 80;
     listen 443 ssl;
-    server_name ~^(?<project>.+)\.php(?<phpver>8[2-5])\.test$;
+    server_name ~^(?<project>.+)\.php(?<phpver>8[2-5])\.${DOMAIN_SUFFIX_REGEX}$;
 
     ssl_certificate /etc/nginx/certs/local-dev.crt;
     ssl_certificate_key /etc/nginx/certs/local-dev.key;

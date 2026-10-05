@@ -745,7 +745,7 @@ case "$1" in
                 set_env_key "$target_dir/.env" MAIL_MAILER "smtp"
                 set_env_key "$target_dir/.env" MAIL_HOST "mailpit"
                 set_env_key "$target_dir/.env" MAIL_PORT "1025"
-                set_env_key "$target_dir/.env" APP_URL "https://${proj_name}.test"
+                set_env_key "$target_dir/.env" APP_URL "https://${proj_name}.$(get_env DOMAIN_SUFFIX test)"
             fi
             echo "✅ Laravel project '$proj_name' created successfully!"
 

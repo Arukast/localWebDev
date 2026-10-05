@@ -1,0 +1,25 @@
+# Cloudflare Tunnel ingress for localDev.
+# Chain: Cloudflare edge -> cloudflared -> Nginx Proxy Manager -> localDev nginx.
+#
+# Setup:
+#   1. Replace <TUNNEL_UUID> / <CREDENTIALS_FILE> (or run in token mode and put
+#      the `ingress:` block into the tunnel's Public Hostname config instead).
+#   2. Copy to /etc/cloudflared/config.yml and restart: cloudflared service restart
+#   3. In Cloudflare DNS, add a proxied wildcard record:
+#        *.<your-domain> CNAME <TUNNEL_UUID>.cfargotunnel.com
+#
+# The wildcard also covers version-pinned hosts (myapp.php84.<your-domain>),
+# since DNS and ingress wildcards match multiple labels.
+
+tunnel: <TUNNEL_UUID>
+credentials-file: <CREDENTIALS_FILE>
+
+ingress:
+  - hostname: "*.<your-domain>"
+    # Nginx Proxy Manager's HTTPS listener with the wildcard cert.
+    # Simpler alternative if port 80/443 are not publicly reachable:
+    #   service: http://127.0.0.1:80
+    service: https://127.0.0.1:443
+    originRequest:
+      originServerName: "*.<your-domain>"
+  - service: http_status:404
