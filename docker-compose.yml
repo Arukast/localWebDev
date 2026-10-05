@@ -200,6 +200,7 @@ services:
       TZ: ${SYSTEM_TIMEZONE:-UTC}
     volumes:
       - mariadb_data:/var/lib/mysql
+      - ./mariadb/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
