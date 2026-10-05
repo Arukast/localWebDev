@@ -8,6 +8,8 @@ services:
       - "${APP_SSL_PORT:-443}:443"
     environment:
       NGINX_WEB_ROOT: ${NGINX_WEB_ROOT:-/var/www/html}
+      DOMAIN_NAME: ${DOMAIN_NAME}
+      NGINX_ENVSUBST_TEMPLATE_VARS: DOMAIN_NAME NGINX_WEB_ROOT
     volumes:
       - ${APP_PATH}:/var/www/html:ro
       - ./nginx/templates:/etc/nginx/templates:ro

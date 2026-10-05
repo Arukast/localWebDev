@@ -15,11 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run ShellCheck
-        uses: ludeeus/action-shellcheck@master
-        with:
-          scandir: '.'
-          severity: warning
-          ignore_paths: 'production-template'
+        run: shellcheck --severity=warning dev tests/*.sh
 
   docker-validate:
     name: Docker Compose Validation

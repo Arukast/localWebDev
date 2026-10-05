@@ -9,7 +9,7 @@ services:
       - "127.0.0.1:${DNSMASQ_PORT:-5354}:53/udp"
       - "127.0.0.1:${DNSMASQ_PORT:-5354}:53/tcp"
     healthcheck:
-      test: ["CMD-SHELL", "nc -z -w1 127.0.0.1 53 || exit 0"]
+      test: ["CMD-SHELL", "nc -z -w1 127.0.0.1 53"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -40,6 +40,7 @@ services:
     volumes:
       - ${PROJECTS_PATH}:/var/www/html:ro
       - ./nginx/conf.d:/etc/nginx/templates:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
       - ./nginx/certs:/etc/nginx/certs:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:80/ || exit 1"]
@@ -66,12 +67,17 @@ services:
   # PHP 8.2 FPM Service
   php82:
     build:
-      context: ./php82
+      context: ./php
       dockerfile: Dockerfile
+      args:
+        PHP_VERSION: 8.2-fpm
     container_name: local-php82
     environment:
       - TZ=${SYSTEM_TIMEZONE:-UTC}
       - XDEBUG_MODE=${XDEBUG_MODE:-off}
+      - DEFAULT_PHP_VERSION=${DEFAULT_PHP_VERSION:-php85}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ${PROJECTS_PATH}:/var/www/html
     healthcheck:
@@ -90,12 +96,17 @@ services:
   # PHP 8.3 FPM Service
   php83:
     build:
-      context: ./php83
+      context: ./php
       dockerfile: Dockerfile
+      args:
+        PHP_VERSION: 8.3-fpm
     container_name: local-php83
     environment:
       - TZ=${SYSTEM_TIMEZONE:-UTC}
       - XDEBUG_MODE=${XDEBUG_MODE:-off}
+      - DEFAULT_PHP_VERSION=${DEFAULT_PHP_VERSION:-php85}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ${PROJECTS_PATH}:/var/www/html
     healthcheck:
@@ -114,12 +125,17 @@ services:
   # PHP 8.4 FPM Service
   php84:
     build:
-      context: ./php84
+      context: ./php
       dockerfile: Dockerfile
+      args:
+        PHP_VERSION: 8.4-fpm
     container_name: local-php84
     environment:
       - TZ=${SYSTEM_TIMEZONE:-UTC}
       - XDEBUG_MODE=${XDEBUG_MODE:-off}
+      - DEFAULT_PHP_VERSION=${DEFAULT_PHP_VERSION:-php85}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ${PROJECTS_PATH}:/var/www/html
     healthcheck:
@@ -135,15 +151,20 @@ services:
       - local-network
     restart: unless-stopped
 
-  # PHP 8.5 FPM Service (Experimental / Nightly)
+  # PHP 8.5 FPM Service (Latest)
   php85:
     build:
-      context: ./php85
+      context: ./php
       dockerfile: Dockerfile
+      args:
+        PHP_VERSION: 8.5-fpm
     container_name: local-php85
     environment:
       - TZ=${SYSTEM_TIMEZONE:-UTC}
       - XDEBUG_MODE=${XDEBUG_MODE:-off}
+      - DEFAULT_PHP_VERSION=${DEFAULT_PHP_VERSION:-php85}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ${PROJECTS_PATH}:/var/www/html
     healthcheck:
@@ -167,7 +188,7 @@ services:
     ports:
       - "127.0.0.1:${MARIADB_PORT:-3306}:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-root_password}
+      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-rootpassword}
       MYSQL_DATABASE: ${MARIADB_DATABASE:-local_db}
       MYSQL_USER: ${MARIADB_USER:-db_user}
       MYSQL_PASSWORD: ${MARIADB_PASSWORD:-db_password}
@@ -260,7 +281,7 @@ services:
     image: rediscommander/redis-commander:latest
     container_name: local-redis-commander
     ports:
-      - "127.0.0.1:${REDIS_COMMANDER_PORT:-8081}:8081"
+      - "127.0.0.1:${REDIS_COMMANDER_PORT:-8086}:8081"
     environment:
       - REDIS_HOSTS=local:redis:6379
     healthcheck:
@@ -312,7 +333,7 @@ services:
     image: dpage/pgadmin4:latest
     container_name: local-pgadmin
     ports:
-      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
+      - "127.0.0.1:${PGADMIN_PORT:-8081}:80"
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@localdev.test}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
@@ -386,8 +407,6 @@ services:
     networks:
       - local-network
     restart: unless-stopped
-
-
 
 networks:
   local-network:

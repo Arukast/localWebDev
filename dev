@@ -9,6 +9,41 @@ CERTS_DIR="${SCRIPT_DIR}/nginx/certs"
 PROJECTS_DIR="${SCRIPT_DIR}/projects"
 SNAPSHOTS_DIR="${SCRIPT_DIR}/snapshots"
 
+# Helper: Read a key from .env (falls back to default)
+get_env() {
+    local key="$1" default="${2:-}" value=""
+    if [[ -f "${SCRIPT_DIR}/.env" ]]; then
+        value="$(grep -E "^${key}=" "${SCRIPT_DIR}/.env" | tail -n1 | cut -d '=' -f2- | tr -d ' "')"
+    fi
+    echo "${value:-$default}"
+}
+
+# Helper: Set (or replace) KEY=VALUE in an env file, uncommenting if needed
+set_env_key() {
+    local file="$1" key="$2" value="$3" esc
+    esc="${value//\\/\\\\}"
+    esc="${esc//&/\\&}"
+    esc="${esc//|/\\|}"
+    if grep -qE "^[[:space:]]*#?[[:space:]]*${key}=" "$file"; then
+        sed -i -E "s|^[[:space:]]*#?[[:space:]]*${key}=.*|${key}=${esc}|" "$file"
+    else
+        printf '%s=%s\n' "$key" "$value" >> "$file"
+    fi
+}
+
+# Helper: Default PHP service name (e.g. php85) from .env DEFAULT_PHP_VERSION
+default_php_version() {
+    get_env DEFAULT_PHP_VERSION "php85"
+}
+
+# Helper: Default PHP version for display (e.g. 8.5)
+default_php_display() {
+    local s
+    s="$(default_php_version)"
+    s="${s#php}"
+    echo "8.${s:1:1}"
+}
+
 # Helper: Detect current project if inside projects/ subdirectory
 detect_current_project() {
     local cwd
@@ -61,6 +96,15 @@ generate_ssl() {
         echo "✅ Self-signed SSL certificate generated at nginx/certs/"
         echo "💡 Note: Install 'mkcert' on your host system for browser-trusted local HTTPS!"
     fi
+
+    reload_nginx_if_running
+}
+
+# Reload nginx config (and pick up renewed certs) when the container is running
+reload_nginx_if_running() {
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^local-nginx$"; then
+        docker exec local-nginx nginx -s reload &>/dev/null || true
+    fi
 }
 
 # Helper: Wait for container to be healthy (up to timeout seconds)
@@ -110,22 +154,24 @@ create_db_if_not_exists() {
     if [[ "$db_type" == "mariadb" || "$db_type" == "mysql" ]]; then
         wait_for_container_health "local-mariadb" 10
         echo "🗄️  Checking/Creating MariaDB database: ${db_name}..."
-        docker exec -i local-mariadb mariadb -u db_user -pdb_password -e "CREATE DATABASE IF NOT EXISTS \`${db_name}\`;" 2>/dev/null || {
+        docker exec -i local-mariadb mariadb \
+            -u "$(get_env MARIADB_USER db_user)" -p"$(get_env MARIADB_PASSWORD db_password)" \
+            -e "CREATE DATABASE IF NOT EXISTS \`${db_name}\`;" || {
             echo "⚠️ Could not auto-create MariaDB database (make sure containers are running with './dev up')."
         }
     elif [[ "$db_type" == "postgres" || "$db_type" == "pgsql" ]]; then
         wait_for_container_health "local-postgres" 10
         echo "🗄️  Checking/Creating PostgreSQL database: ${db_name}..."
-        docker exec -i local-postgres psql -U db_user -d local_db -c "CREATE DATABASE ${db_name};" 2>/dev/null || true
+        local pg_user exists
+        pg_user="$(get_env POSTGRES_USER db_user)"
+        exists="$(docker exec -i local-postgres psql -U "$pg_user" -d postgres -tAc \
+            "SELECT 1 FROM pg_database WHERE datname='${db_name}';" 2>/dev/null || true)"
+        if [[ "$exists" != "1" ]]; then
+            docker exec -i local-postgres psql -U "$pg_user" -d postgres -c "CREATE DATABASE \"${db_name}\";" || {
+                echo "⚠️ Could not auto-create PostgreSQL database (make sure containers are running with './dev up')."
+            }
+        fi
     fi
-}
-
-get_dnsmasq_port() {
-    local port=""
-    if [[ -f "${SCRIPT_DIR}/.env" ]]; then
-        port="$(grep -E '^DNSMASQ_PORT=' "${SCRIPT_DIR}/.env" | cut -d '=' -f2 | tr -d ' "')"
-    fi
-    echo "${port:-5354}"
 }
 
 # Setup local DNS resolution (*.test)
@@ -134,7 +180,7 @@ setup_dns() {
 
     local os dns_port resolved_service
     os="$(uname -s)"
-    dns_port="$(get_dnsmasq_port)"
+    dns_port="$(get_env DNSMASQ_PORT 5354)"
 
     if [[ "$os" == "Linux" ]]; then
         # Detect systemd-resolved by service file existence (works even when disabled)
@@ -196,7 +242,7 @@ check_dns_status() {
     local test_domain="localdev-test.test"
     local resolved_ip=""
     local dns_port
-    dns_port="$(get_dnsmasq_port)"
+    dns_port="$(get_env DNSMASQ_PORT 5354)"
 
     if command -v dig &>/dev/null; then
         resolved_ip="$(dig +short @127.0.0.1 -p ${dns_port} "$test_domain" 2>/dev/null | tail -n1)"
@@ -253,7 +299,7 @@ install_completion() {
 
     if [[ "$shell_name" == "zsh" ]]; then
         local zshrc="$HOME/.zshrc"
-        if ! grep -q "compdef _dev dev" "$zshrc" 2>/dev/null; then
+        if ! grep -q "# localDev CLI completions" "$zshrc" 2>/dev/null; then
             echo "" >> "$zshrc"
             echo "# localDev CLI completions" >> "$zshrc"
             echo "source <($SCRIPT_DIR/dev completion zsh)" >> "$zshrc"
@@ -264,7 +310,7 @@ install_completion() {
         fi
     elif [[ "$shell_name" == "bash" ]]; then
         local bashrc="$HOME/.bashrc"
-        if ! grep -q "_dev_completion" "$bashrc" 2>/dev/null; then
+        if ! grep -q "# localDev CLI completions" "$bashrc" 2>/dev/null; then
             echo "" >> "$bashrc"
             echo "# localDev CLI completions" >> "$bashrc"
             echo "source <($SCRIPT_DIR/dev completion bash)" >> "$bashrc"
@@ -283,16 +329,35 @@ install_completion() {
     fi
 }
 
-# Helper to determine target PHP container name from flag or default (php84)
+# Helper: Determine target PHP container name from version flag or the configured default
 get_php_container() {
     local raw_ver="$1"
     case "$raw_ver" in
-        8.2|82) echo "local-php82" ;;
-        8.3|83) echo "local-php83" ;;
-        8.4|84) echo "local-php84" ;;
-        8.5|85) echo "local-php85" ;;
-        *)      echo "local-php84" ;;
+        8.2|82|php82) echo "local-php82" ;;
+        8.3|83|php83) echo "local-php83" ;;
+        8.4|84|php84) echo "local-php84" ;;
+        8.5|85|php85) echo "local-php85" ;;
+        *)          echo "local-$(default_php_version)" ;;
     esac
+}
+
+# Helper: Run a tool inside the (optionally version-prefixed) PHP container
+run_tool() {
+    local tool="$1" raw_ver="" container workdir proj
+    shift
+    case "${1:-}" in
+        8.2|82|8.3|83|8.4|84|8.5|85)
+            raw_ver="$1"
+            shift
+            ;;
+    esac
+    container="$(get_php_container "$raw_ver")"
+    proj="$(detect_current_project)"
+    workdir="/var/www/html"
+    if [[ -n "$proj" ]]; then
+        workdir="/var/www/html/$proj"
+    fi
+    docker exec -it -w "$workdir" "$container" "$tool" "$@"
 }
 
 # Environment snapshot management
@@ -339,13 +404,15 @@ snapshot_save() {
     # Dump MariaDB if container is running
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^local-mariadb$"; then
         echo " 📦 Exporting MariaDB databases..."
-        docker exec -i local-mariadb mariadb-dump -u db_user -pdb_password --all-databases > "$tmp_dir/mariadb_dump.sql" 2>/dev/null || true
+        docker exec -i local-mariadb mariadb-dump \
+            -u "$(get_env MARIADB_USER db_user)" -p"$(get_env MARIADB_PASSWORD db_password)" \
+            --all-databases > "$tmp_dir/mariadb_dump.sql" 2>/dev/null || true
     fi
 
-    # Dump PostgreSQL if container is running
+    # Dump PostgreSQL if container is running (never -t: TTY mangles LF into CRLF)
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^local-postgres$"; then
         echo " 📦 Exporting PostgreSQL databases..."
-        docker exec -t local-postgres pg_dumpall -U db_user > "$tmp_dir/postgres_dump.sql" 2>/dev/null || true
+        docker exec -i local-postgres pg_dumpall -U "$(get_env POSTGRES_USER db_user)" > "$tmp_dir/postgres_dump.sql" 2>/dev/null || true
     fi
 
     # Dump Redis if container is running
@@ -354,12 +421,15 @@ snapshot_save() {
         docker exec local-redis redis-cli bgsave &>/dev/null || true
     fi
 
-    # Save metadata JSON
+    # Save metadata JSON (values escaped for JSON safety)
+    local name_json notes_json
+    name_json="$(printf '%s' "$name" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+    notes_json="$(printf '%s' "$notes" | sed 's/\\/\\\\/g; s/"/\\"/g')"
     cat <<EOF > "$tmp_dir/metadata.json"
 {
-  "name": "$name",
+  "name": "$name_json",
   "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "notes": "$notes",
+  "notes": "$notes_json",
   "has_mariadb": $( [[ -f "$tmp_dir/mariadb_dump.sql" ]] && echo "true" || echo "false" ),
   "has_postgres": $( [[ -f "$tmp_dir/postgres_dump.sql" ]] && echo "true" || echo "false" )
 }
@@ -414,7 +484,9 @@ snapshot_restore() {
     if [[ -f "$tmp_dir/mariadb_dump.sql" ]]; then
         if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^local-mariadb$"; then
             echo " 📥 Restoring MariaDB databases..."
-            docker exec -i local-mariadb mariadb -u db_user -pdb_password < "$tmp_dir/mariadb_dump.sql" 2>/dev/null || true
+            docker exec -i local-mariadb mariadb \
+                -u "$(get_env MARIADB_USER db_user)" -p"$(get_env MARIADB_PASSWORD db_password)" \
+                < "$tmp_dir/mariadb_dump.sql" 2>/dev/null || true
             echo " ✅ MariaDB databases restored."
         else
             echo " ⚠️ MariaDB dump found, but 'local-mariadb' container is not running."
@@ -424,7 +496,8 @@ snapshot_restore() {
     if [[ -f "$tmp_dir/postgres_dump.sql" ]]; then
         if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^local-postgres$"; then
             echo " 📥 Restoring PostgreSQL databases..."
-            docker exec -i local-postgres psql -U db_user -d local_db < "$tmp_dir/postgres_dump.sql" 2>/dev/null || true
+            docker exec -i local-postgres psql -U "$(get_env POSTGRES_USER db_user)" -d postgres \
+                < "$tmp_dir/postgres_dump.sql" 2>/dev/null || true
             echo " ✅ PostgreSQL databases restored."
         else
             echo " ⚠️ PostgreSQL dump found, but 'local-postgres' container is not running."
@@ -490,40 +563,13 @@ snapshot_delete() {
     echo "🗑️ Deleted snapshot '${name}'."
 }
 
-snapshot_interactive() {
-    snapshot_list
-    echo ""
-    echo "Options:"
-    echo "  1) Save new snapshot"
-    echo "  2) Restore existing snapshot"
-    echo "  3) Delete snapshot"
-    echo "  4) Exit"
-    read -p "Select an action (1-4): " choice
-    case "$choice" in
-        1)
-            read -p "Snapshot name: " sname
-            read -p "Notes (optional): " snotes
-            snapshot_save "$sname" --notes="$snotes"
-            ;;
-        2)
-            read -p "Snapshot name to restore: " sname
-            snapshot_restore "$sname"
-            ;;
-        3)
-            read -p "Snapshot name to delete: " sname
-            snapshot_delete "$sname"
-            ;;
-        *)
-            echo "Exiting."
-            ;;
-    esac
-}
-
 show_help() {
     echo "=========================================="
     echo " 🚀 localDev CLI Helper"
     echo "=========================================="
     echo "Usage: ./dev <command> [options]"
+    echo ""
+    echo "Default PHP version for versioned commands: $(default_php_version) (set DEFAULT_PHP_VERSION in .env)"
     echo ""
     echo "Docker Controls:"
     echo "  up [--tools|--all]      Start Docker containers (runs core by default, --tools enables Web GUIs/Meili/MinIO)"
@@ -535,17 +581,16 @@ show_help() {
     echo "  dns [setup|status|teardown] Configure or test automatic *.test DNS resolution"
     echo ""
     echo "Project Management:"
-    echo "  new <name> [options]    Scaffold new project (--type=laravel|wordpress|symfony|vite|blank, --php=8.4|8.3|8.2|8.5, --db=mariadb|postgres)"
+    echo "  new <name> [options]    Scaffold new project (--type=laravel|wordpress|symfony|vite|blank, --php=8.5|8.4|8.3|8.2, --db=mariadb|postgres)"
     echo "  list                    List all local projects and their test URLs"
-    echo "  share <project>         Share local project publicly via HTTPS Cloudflare Tunnel"
     echo ""
     echo "Development Helpers:"
-    echo "  composer [ver] ...      Run Composer inside PHP container (default: 8.4; ver: 8.2|8.3|8.4|8.5)"
-    echo "  artisan [app] <cmd>    Run Artisan command for Laravel app"
-    echo "  php [ver] ...          Run PHP CLI command inside container"
-    echo "  npm [ver] ...          Run NPM command inside container"
-    echo "  npx [ver] ...          Run NPX command inside container"
-    echo "  node [ver] ...         Run Node.js script inside container"
+    echo "  composer [ver] ...      Run Composer inside PHP container (ver: 8.2|8.3|8.4|8.5)"
+    echo "  artisan [app] <cmd>     Run Artisan command for Laravel app"
+    echo "  php [ver] ...           Run PHP CLI command inside container"
+    echo "  npm [ver] ...           Run NPM command inside container"
+    echo "  npx [ver] ...           Run NPX command inside container"
+    echo "  node [ver] ...          Run Node.js script inside container"
     echo "  db shell <mariadb|postgres>              Open interactive DB CLI shell"
     echo "  db backup <mariadb|postgres> [out.sql]   Export database dump"
     echo "  db restore <mariadb|postgres> <in.sql]   Import database dump"
@@ -561,6 +606,10 @@ case "$1" in
     up)
         ensure_ssl
         shift
+        # Never let empty Tailscale values reach the nginx template
+        TAILSCALE_DOMAIN="$(get_env TAILSCALE_DOMAIN share.test)"
+        TAILSCALE_PROJECT_PATH="$(get_env TAILSCALE_PROJECT_PATH dashboard)"
+        export TAILSCALE_DOMAIN TAILSCALE_PROJECT_PATH
         use_tools=false
         args=()
         for arg in "$@"; do
@@ -622,16 +671,16 @@ case "$1" in
 
     new)
         shift
-        if [[ -z "$1" ]]; then
+        if [[ -z "${1:-}" ]]; then
             echo "❌ Error: Project name required."
-            echo "Usage: ./dev new <project_name> [--type=laravel|wordpress|symfony|vite|blank] [--php=8.4|8.3|8.2|8.5] [--db=mariadb|postgres]"
+            echo "Usage: ./dev new <project_name> [--type=laravel|wordpress|symfony|vite|blank] [--php=8.5|8.4|8.3|8.2] [--db=mariadb|postgres]"
             exit 1
         fi
 
         proj_name="$1"
         shift
         type="laravel"
-        php_ver="8.4"
+        php_ver="$(default_php_display)"
         db_type="mariadb"
 
         for arg in "$@"; do
@@ -642,6 +691,28 @@ case "$1" in
             esac
         done
 
+        # Normalize database selection to real service + driver names
+        case "$db_type" in
+            mariadb|mysql)
+                db_service="mariadb"
+                db_conn="mysql"
+                db_port="3306"
+                db_user_cfg="$(get_env MARIADB_USER db_user)"
+                db_pass_cfg="$(get_env MARIADB_PASSWORD db_password)"
+                ;;
+            postgres|pgsql)
+                db_service="postgres"
+                db_conn="pgsql"
+                db_port="5432"
+                db_user_cfg="$(get_env POSTGRES_USER db_user)"
+                db_pass_cfg="$(get_env POSTGRES_PASSWORD db_password)"
+                ;;
+            *)
+                echo "❌ Error: Unknown database type '$db_type' (use mariadb or postgres)."
+                exit 1
+                ;;
+        esac
+
         php_container=$(get_php_container "$php_ver")
         target_dir="$PROJECTS_DIR/$proj_name"
 
@@ -650,10 +721,10 @@ case "$1" in
             exit 1
         fi
 
-        echo "🚀 Scaffolding new '$type' project '$proj_name' (PHP $php_ver, DB: $db_type)..."
+        echo "🚀 Scaffolding new '$type' project '$proj_name' (PHP $php_ver, DB: $db_service)..."
 
         db_name="${proj_name//-/_}"
-        create_db_if_not_exists "$db_type" "$db_name"
+        create_db_if_not_exists "$db_service" "$db_name"
 
         mkdir -p "$target_dir"
 
@@ -662,13 +733,19 @@ case "$1" in
             docker exec -it -w "/var/www/html" "$php_container" composer create-project laravel/laravel "$proj_name"
 
             if [[ -f "$target_dir/.env" ]]; then
-                sed -i "s/DB_HOST=.*/DB_HOST=$db_type/" "$target_dir/.env"
-                sed -i "s/DB_DATABASE=.*/DB_DATABASE=$db_name/" "$target_dir/.env"
-                sed -i "s/DB_USERNAME=.*/DB_USERNAME=db_user/" "$target_dir/.env"
-                sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=db_password/" "$target_dir/.env"
-                sed -i "s/REDIS_HOST=.*/REDIS_HOST=redis/" "$target_dir/.env"
-                sed -i "s/MAIL_HOST=.*/MAIL_HOST=mailpit/" "$target_dir/.env"
-                sed -i "s/MAIL_PORT=.*/MAIL_PORT=1025/" "$target_dir/.env"
+                # Laravel ships DB_CONNECTION=sqlite and commented-out DB_* keys,
+                # so replace-or-append instead of naive sed substitutions.
+                set_env_key "$target_dir/.env" DB_CONNECTION "$db_conn"
+                set_env_key "$target_dir/.env" DB_HOST "$db_service"
+                set_env_key "$target_dir/.env" DB_PORT "$db_port"
+                set_env_key "$target_dir/.env" DB_DATABASE "$db_name"
+                set_env_key "$target_dir/.env" DB_USERNAME "$db_user_cfg"
+                set_env_key "$target_dir/.env" DB_PASSWORD "$db_pass_cfg"
+                set_env_key "$target_dir/.env" REDIS_HOST "redis"
+                set_env_key "$target_dir/.env" MAIL_MAILER "smtp"
+                set_env_key "$target_dir/.env" MAIL_HOST "mailpit"
+                set_env_key "$target_dir/.env" MAIL_PORT "1025"
+                set_env_key "$target_dir/.env" APP_URL "https://${proj_name}.test"
             fi
             echo "✅ Laravel project '$proj_name' created successfully!"
 
@@ -690,9 +767,9 @@ case "$1" in
             cat <<EOF > "$target_dir/wp-config.php"
 <?php
 define( 'DB_NAME', '${db_name}' );
-define( 'DB_USER', 'db_user' );
-define( 'DB_PASSWORD', 'db_password' );
-define( 'DB_HOST', '${db_type}' );
+define( 'DB_USER', '${db_user_cfg}' );
+define( 'DB_PASSWORD', '${db_pass_cfg}' );
+define( 'DB_HOST', '${db_service}' );
 define( 'DB_CHARSET', 'utf8mb4' );
 define( 'DB_COLLATE', '' );
 
@@ -740,12 +817,12 @@ EOF
             cat <<EOF > "$target_dir/.env"
 APP_NAME="${proj_name}"
 APP_ENV=local
-DB_CONNECTION=${db_type}
-DB_HOST=${db_type}
-DB_PORT=$([[ "$db_type" == "postgres" || "$db_type" == "pgsql" ]] && echo "5432" || echo "3306")
+DB_CONNECTION=${db_conn}
+DB_HOST=${db_service}
+DB_PORT=${db_port}
 DB_DATABASE=${db_name}
-DB_USERNAME=db_user
-DB_PASSWORD=db_password
+DB_USERNAME=${db_user_cfg}
+DB_PASSWORD=${db_pass_cfg}
 REDIS_HOST=redis
 REDIS_PORT=6379
 MAIL_HOST=mailpit
@@ -756,19 +833,25 @@ EOF
 
         echo ""
         echo "🌐 Available Test URLs:"
-        echo "  - HTTPS (Default 8.4): https://${proj_name}.test"
+        echo "  - HTTPS (Default $(default_php_version)): https://${proj_name}.test"
+        echo "  - HTTPS (PHP 8.5):     https://${proj_name}.php85.test"
         echo "  - HTTPS (PHP 8.4):     https://${proj_name}.php84.test"
         echo "  - HTTPS (PHP 8.3):     https://${proj_name}.php83.test"
         echo "  - HTTPS (PHP 8.2):     https://${proj_name}.php82.test"
-        echo "  - HTTP (Fallback):     http://localhost:8084/${proj_name}"
+        echo "  - HTTP (Fallback):     http://localhost:$(get_env NGINX_PORT_PHP84 8084)/${proj_name}"
         ;;
 
     list)
+        port82="$(get_env NGINX_PORT_PHP82 8082)"
+        port83="$(get_env NGINX_PORT_PHP83 8083)"
+        port84="$(get_env NGINX_PORT_PHP84 8084)"
+        port85="$(get_env NGINX_PORT_PHP85 8085)"
+
         echo "========================================================================================="
         echo " 📁 localDev Projects Overview"
         echo "========================================================================================="
         printf "%-18s %-12s %-32s %-25s\n" "PROJECT" "TYPE" "HTTPS DOMAIN (*.test)" "PORT FALLBACK"
-        echo "----------------------------------------------------------------------------------------- shadow"
+        echo "-----------------------------------------------------------------------------------------"
 
         for pdir in "$PROJECTS_DIR"/*; do
             if [[ -d "$pdir" ]]; then
@@ -785,59 +868,26 @@ EOF
                 fi
 
                 domain="https://${pname}.test"
-                fallback="http://localhost:8084/${pname}"
+                fallback="http://localhost:${port84}/${pname}"
 
                 printf "%-18s %-12s %-32s %-25s\n" "$pname" "$ptype" "$domain" "$fallback"
             fi
         done
         echo "========================================================================================="
-        ;;
-
-    share)
-        shift
-        proj="$1"
-        if [[ -z "$proj" ]]; then
-            proj=$(detect_current_project)
-        fi
-
-        if [[ -z "$proj" ]]; then
-            echo "❌ Error: Project name required."
-            echo "Usage: ./dev share <project-name> (or run from inside projects/<project-name>)"
-            exit 1
-        fi
-
-        echo "🌐 Exposing project '$proj' publicly via Cloudflare Tunnel..."
-        echo "💡 Press Ctrl+C to terminate the tunnel."
-        echo ""
-        docker run --rm -it --net=host cloudflare/cloudflared:latest tunnel --url "http://127.0.0.1:8084/$proj"
+        echo " Port fallbacks: :${port85} (php85) :${port84} (php84) :${port83} (php83) :${port82} (php82)"
+        echo "========================================================================================="
         ;;
 
     composer)
         shift
-        raw_ver="8.4"
-        case "$1" in
-            8.2|82|8.3|83|8.4|84|8.5|85)
-                raw_ver="$1"
-                shift
-                ;;
-        esac
-        container=$(get_php_container "$raw_ver")
-
-        proj=$(detect_current_project)
-        workdir="/var/www/html"
-        if [[ -n "$proj" ]]; then
-            workdir="/var/www/html/$proj"
-        fi
-
-        docker exec -it -w "$workdir" "$container" composer "$@"
+        run_tool composer "$@"
         ;;
 
     artisan)
         shift
-        raw_ver="8.4"
         proj=$(detect_current_project)
 
-        if [[ -d "$PROJECTS_DIR/$1" ]]; then
+        if [[ -n "${1:-}" ]] && [[ -d "$PROJECTS_DIR/$1" ]]; then
             proj="$1"
             shift
         fi
@@ -848,106 +898,47 @@ EOF
             exit 1
         fi
 
-        container=$(get_php_container "$raw_ver")
-        docker exec -it -w "/var/www/html/$proj" "$container" php artisan "$@"
+        docker exec -it -w "/var/www/html/$proj" "$(get_php_container "")" php artisan "$@"
         ;;
 
     php)
         shift
-        raw_ver="8.4"
-        case "$1" in
-            8.2|82|8.3|83|8.4|84|8.5|85)
-                raw_ver="$1"
-                shift
-                ;;
-        esac
-        container=$(get_php_container "$raw_ver")
-
-        proj=$(detect_current_project)
-        workdir="/var/www/html"
-        if [[ -n "$proj" ]]; then
-            workdir="/var/www/html/$proj"
-        fi
-
-        docker exec -it -w "$workdir" "$container" php "$@"
+        run_tool php "$@"
         ;;
 
     npm)
         shift
-        raw_ver="8.4"
-        case "$1" in
-            8.2|82|8.3|83|8.4|84|8.5|85)
-                raw_ver="$1"
-                shift
-                ;;
-        esac
-        container=$(get_php_container "$raw_ver")
-
-        proj=$(detect_current_project)
-        workdir="/var/www/html"
-        if [[ -n "$proj" ]]; then
-            workdir="/var/www/html/$proj"
-        fi
-
-        docker exec -it -w "$workdir" "$container" npm "$@"
+        run_tool npm "$@"
         ;;
 
     npx)
         shift
-        raw_ver="8.4"
-        case "$1" in
-            8.2|82|8.3|83|8.4|84|8.5|85)
-                raw_ver="$1"
-                shift
-                ;;
-        esac
-        container=$(get_php_container "$raw_ver")
-
-        proj=$(detect_current_project)
-        workdir="/var/www/html"
-        if [[ -n "$proj" ]]; then
-            workdir="/var/www/html/$proj"
-        fi
-
-        docker exec -it -w "$workdir" "$container" npx "$@"
+        run_tool npx "$@"
         ;;
 
     node)
         shift
-        raw_ver="8.4"
-        case "$1" in
-            8.2|82|8.3|83|8.4|84|8.5|85)
-                raw_ver="$1"
-                shift
-                ;;
-        esac
-        container=$(get_php_container "$raw_ver")
-
-        proj=$(detect_current_project)
-        workdir="/var/www/html"
-        if [[ -n "$proj" ]]; then
-            workdir="/var/www/html/$proj"
-        fi
-
-        docker exec -it -w "$workdir" "$container" node "$@"
+        run_tool node "$@"
         ;;
 
     db)
         shift
         action="$1"
         shift || true
-        db_type="$1"
+        db_type="${1:-}"
         shift || true
 
         if [[ "$action" == "shell" ]]; then
             if [[ "$db_type" == "mariadb" || "$db_type" == "mysql" ]]; then
                 wait_for_container_health "local-mariadb" 10
                 echo "💻 Connecting to MariaDB interactive shell..."
-                docker exec -it local-mariadb mariadb -u db_user -pdb_password local_db
+                docker exec -it local-mariadb mariadb \
+                    -u "$(get_env MARIADB_USER db_user)" -p"$(get_env MARIADB_PASSWORD db_password)" \
+                    "$(get_env MARIADB_DATABASE local_db)"
             elif [[ "$db_type" == "postgres" || "$db_type" == "pgsql" ]]; then
                 wait_for_container_health "local-postgres" 10
                 echo "💻 Connecting to PostgreSQL interactive shell..."
-                docker exec -it local-postgres psql -U db_user -d local_db
+                docker exec -it local-postgres psql -U "$(get_env POSTGRES_USER db_user)" -d "$(get_env POSTGRES_DB local_db)"
             else
                 echo "Usage: ./dev db shell <mariadb|postgres>"
             fi
@@ -957,12 +948,16 @@ EOF
             if [[ "$db_type" == "mariadb" || "$db_type" == "mysql" ]]; then
                 wait_for_container_health "local-mariadb" 10
                 echo "📦 Exporting MariaDB to $outfile..."
-                docker exec -i local-mariadb mariadb-dump -u db_user -pdb_password local_db > "$outfile"
+                docker exec -i local-mariadb mariadb-dump \
+                    -u "$(get_env MARIADB_USER db_user)" -p"$(get_env MARIADB_PASSWORD db_password)" \
+                    "$(get_env MARIADB_DATABASE local_db)" > "$outfile"
                 echo "✅ Mariadb dump completed: $outfile"
             elif [[ "$db_type" == "postgres" || "$db_type" == "pgsql" ]]; then
                 wait_for_container_health "local-postgres" 10
                 echo "📦 Exporting PostgreSQL to $outfile..."
-                docker exec -t local-postgres pg_dump -U db_user local_db > "$outfile"
+                # Never use `docker exec -t` here: the TTY corrupts the dump with CRLF line endings
+                docker exec -i local-postgres pg_dump -U "$(get_env POSTGRES_USER db_user)" \
+                    "$(get_env POSTGRES_DB local_db)" > "$outfile"
                 echo "✅ PostgreSQL dump completed: $outfile"
             else
                 echo "❌ Unknown db_type: $db_type (Use 'mariadb' or 'postgres')"
@@ -977,12 +972,15 @@ EOF
             if [[ "$db_type" == "mariadb" || "$db_type" == "mysql" ]]; then
                 wait_for_container_health "local-mariadb" 10
                 echo "📥 Importing $infile into MariaDB..."
-                docker exec -i local-mariadb mariadb -u db_user -pdb_password local_db < "$infile"
+                docker exec -i local-mariadb mariadb \
+                    -u "$(get_env MARIADB_USER db_user)" -p"$(get_env MARIADB_PASSWORD db_password)" \
+                    "$(get_env MARIADB_DATABASE local_db)" < "$infile"
                 echo "✅ Mariadb restore completed!"
             elif [[ "$db_type" == "postgres" || "$db_type" == "pgsql" ]]; then
                 wait_for_container_health "local-postgres" 10
                 echo "📥 Importing $infile into PostgreSQL..."
-                docker exec -i local-postgres psql -U db_user -d local_db < "$infile"
+                docker exec -i local-postgres psql -U "$(get_env POSTGRES_USER db_user)" \
+                    -d "$(get_env POSTGRES_DB local_db)" < "$infile"
                 echo "✅ PostgreSQL restore completed!"
             else
                 echo "❌ Unknown db_type: $db_type (Use 'mariadb' or 'postgres')"
@@ -997,7 +995,7 @@ EOF
 
     snapshot)
         shift
-        subcmd="${1:-interactive}"
+        subcmd="${1:-list}"
         case "$subcmd" in
             save)
                 shift
@@ -1013,9 +1011,6 @@ EOF
             delete|rm)
                 shift
                 snapshot_delete "$@"
-                ;;
-            interactive)
-                snapshot_interactive
                 ;;
             *)
                 echo "Usage: ./dev snapshot [save|restore|list|delete] [name]"
@@ -1061,7 +1056,6 @@ _dev() {
         'dns:Configure or test *.test DNS resolution'
         'new:Scaffold new project'
         'list:List local projects'
-        'share:Share local project via Cloudflare Tunnel'
         'composer:Run Composer inside container'
         'artisan:Run Artisan command'
         'php:Run PHP command'
@@ -1092,7 +1086,6 @@ complete -c dev -n "__fish_use_subcommand" -a "ssl" -d "Generate or renew SSL ce
 complete -c dev -n "__fish_use_subcommand" -a "dns" -d "Configure or test *.test DNS resolution"
 complete -c dev -n "__fish_use_subcommand" -a "new" -d "Scaffold new project"
 complete -c dev -n "__fish_use_subcommand" -a "list" -d "List local projects"
-complete -c dev -n "__fish_use_subcommand" -a "share" -d "Share local project via Cloudflare Tunnel"
 complete -c dev -n "__fish_use_subcommand" -a "composer" -d "Run Composer inside container"
 complete -c dev -n "__fish_use_subcommand" -a "artisan" -d "Run Artisan command"
 complete -c dev -n "__fish_use_subcommand" -a "php" -d "Run PHP CLI inside container"
@@ -1112,7 +1105,7 @@ _dev_completion() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="up down restart logs status ps ssl dns new list share composer artisan php npm npx node db snapshot test help completion"
+    opts="up down restart logs status ps ssl dns new list composer artisan php npm npx node db snapshot test help completion"
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
         COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )

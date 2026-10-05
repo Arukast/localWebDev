@@ -1,5 +1,23 @@
+# ============================================================
+# localDev nginx routing (processed by envsubst at container start)
+# Substituted variables: ${DEFAULT_PHP_VERSION}, ${TAILSCALE_DOMAIN}, ${TAILSCALE_PROJECT_PATH}
+# ============================================================
+
+# Docker embedded DNS. Required because fastcgi_pass backends are resolved
+# from runtime variables ($fpm / $port_fpm) below.
+resolver 127.0.0.11 valid=10s ipv6=off;
+
+# Port-fallback routing: listen port -> PHP-FPM backend
+map $server_port $port_fpm {
+    8082    php82:9000;
+    8083    php83:9000;
+    8084    php84:9000;
+    8085    php85:9000;
+    default ${DEFAULT_PHP_VERSION}:9000;
+}
+
 # ==========================================
-# 0. Wildcard Domain Routing (*.test) -> Default PHP 8.5 (Latest Stable)
+# 0. Wildcard Domain Routing (*.test) -> Default PHP Version
 # ==========================================
 server {
     listen 80;
@@ -9,342 +27,68 @@ server {
     ssl_certificate /etc/nginx/certs/local-dev.crt;
     ssl_certificate_key /etc/nginx/certs/local-dev.key;
     ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
 
-    # Default to project root
-    set $project_root /var/www/html/$project;
-
-    # Smart Framework / Laravel project detection
-    if (-d /var/www/html/$project/public) {
-        set $project_root /var/www/html/$project/public;
-    }
-    if (-f /var/www/html/$project/artisan) {
-        set $project_root /var/www/html/$project/public;
-    }
-    if (-f /var/www/html/$project/index.php) {
-        set $project_root /var/www/html/$project;
-    }
-
-    root $project_root;
-
-    index index.php index.html;
-    charset utf-8;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
-
-    location ~ \.php$ {
-        fastcgi_pass ${DEFAULT_PHP_VERSION}:9000;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    location ~ /\.(?!well-known).* { deny all; }
-}
-
-# ==========================================
-# 1. Dynamic Domain Routing (*.php82.test) - HTTP & HTTPS
-# ==========================================
-server {
-    listen 80;
-    listen 443 ssl;
-    server_name ~^(?<project>.+)\.php82\.test$;
-
-    ssl_certificate /etc/nginx/certs/local-dev.crt;
-    ssl_certificate_key /etc/nginx/certs/local-dev.key;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-
-    set $project_root /var/www/html/$project;
-
-    if (-d /var/www/html/$project/public) {
-        set $project_root /var/www/html/$project/public;
-    }
-    if (-f /var/www/html/$project/artisan) {
-        set $project_root /var/www/html/$project/public;
-    }
-    if (-f /var/www/html/$project/index.php) {
-        set $project_root /var/www/html/$project;
-    }
-
-    root $project_root;
-
-    index index.php index.html;
-    charset utf-8;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
-
-    location ~ \.php$ {
-        fastcgi_pass php82:9000;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    location ~ /\.(?!well-known).* { deny all; }
-}
-
-# ==========================================
-# 2. Dynamic Domain Routing (*.php83.test) - HTTP & HTTPS
-# ==========================================
-server {
-    listen 80;
-    listen 443 ssl;
-    server_name ~^(?<project>.+)\.php83\.test$;
-
-    ssl_certificate /etc/nginx/certs/local-dev.crt;
-    ssl_certificate_key /etc/nginx/certs/local-dev.key;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-
-    set $project_root /var/www/html/$project;
-
-    if (-d /var/www/html/$project/public) {
-        set $project_root /var/www/html/$project/public;
-    }
-    if (-f /var/www/html/$project/artisan) {
-        set $project_root /var/www/html/$project/public;
-    }
-    if (-f /var/www/html/$project/index.php) {
-        set $project_root /var/www/html/$project;
-    }
-
-    root $project_root;
-
-    index index.php index.html;
-    charset utf-8;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
-
-    location ~ \.php$ {
-        fastcgi_pass php83:9000;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    location ~ /\.(?!well-known).* { deny all; }
-}
-
-# ==========================================
-# 3. Dynamic Domain Routing (*.php84.test) - HTTP & HTTPS
-# ==========================================
-server {
-    listen 80;
-    listen 443 ssl;
-    server_name ~^(?<project>.+)\.php84\.test$;
-
-    ssl_certificate /etc/nginx/certs/local-dev.crt;
-    ssl_certificate_key /etc/nginx/certs/local-dev.key;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-
-    set $project_root /var/www/html/$project;
-
-    if (-d /var/www/html/$project/public) {
-        set $project_root /var/www/html/$project/public;
-    }
-    if (-f /var/www/html/$project/artisan) {
-        set $project_root /var/www/html/$project/public;
-    }
-    if (-f /var/www/html/$project/index.php) {
-        set $project_root /var/www/html/$project;
-    }
-
-    root $project_root;
-
-    index index.php index.html;
-    charset utf-8;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
-
-    location ~ \.php$ {
-        fastcgi_pass php84:9000;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    location ~ /\.(?!well-known).* { deny all; }
-}
-
-# ==========================================
-# 4. Dynamic Domain Routing (*.php85.test) - HTTP & HTTPS
-# ==========================================
-server {
-    listen 80;
-    listen 443 ssl;
-    server_name ~^(?<project>.+)\.php85\.test$;
-
-    ssl_certificate /etc/nginx/certs/local-dev.crt;
-    ssl_certificate_key /etc/nginx/certs/local-dev.key;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-
-    set $project_root /var/www/html/$project;
-
-    if (-d /var/www/html/$project/public) {
-        set $project_root /var/www/html/$project/public;
-    }
-    if (-f /var/www/html/$project/artisan) {
-        set $project_root /var/www/html/$project/public;
-    }
-    if (-f /var/www/html/$project/index.php) {
-        set $project_root /var/www/html/$project;
-    }
-
-    root $project_root;
-
-    index index.php index.html;
-    charset utf-8;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
-
-    location ~ \.php$ {
-        fastcgi_pass php85:9000;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    location ~ /\.(?!well-known).* { deny all; }
+    set $fpm ${DEFAULT_PHP_VERSION}:9000;
+    include /etc/nginx/snippets/project-routing.conf;
 }
 
 # =======================================================
-# 5. Port Fallback (PHP 8.2) — Plain PHP / Quick Access
-#    Laravel projects: use pos_alja.php82.test instead
+# 1. Version-Pinned Domain Routing (*.php82.test … *.php85.test)
+# =======================================================
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name ~^(?<project>.+)\.php(?<phpver>8[2-5])\.test$;
+
+    ssl_certificate /etc/nginx/certs/local-dev.crt;
+    ssl_certificate_key /etc/nginx/certs/local-dev.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+
+    set $fpm php${phpver}:9000;
+    include /etc/nginx/snippets/project-routing.conf;
+}
+
+# =======================================================
+# 2. Port Fallback — Plain PHP / Quick Access
+#    Laravel projects: use <name>.phpNN.test instead
 # =======================================================
 server {
     listen 8082;
-    server_name _;
-    root /var/www/html;
-    index index.php index.html;
-    charset utf-8;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location ~ \.php$ {
-        fastcgi_pass php82:9000;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
-    location ~ /\.(?!well-known).* { deny all; }
-}
-
-# =======================================================
-# 6. Port Fallback (PHP 8.3) — Plain PHP / Quick Access
-#    Laravel projects: use pos_alja.php83.test instead
-# =======================================================
-server {
     listen 8083;
-    server_name _;
-    root /var/www/html;
-    index index.php index.html;
-    charset utf-8;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location ~ \.php$ {
-        fastcgi_pass php83:9000;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
-    location ~ /\.(?!well-known).* { deny all; }
-}
-
-# =======================================================
-# 7. Port Fallback (PHP 8.4) — Plain PHP / Quick Access
-#    Laravel projects: use pos_alja.php84.test instead
-# =======================================================
-server {
     listen 8084;
-    server_name _;
-    root /var/www/html;
-    index index.php index.html;
-    charset utf-8;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location ~ \.php$ {
-        fastcgi_pass php84:9000;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
-    location ~ /\.(?!well-known).* { deny all; }
-}
-
-# =======================================================
-# 8. Port Fallback (PHP 8.5) — Plain PHP / Quick Access
-#    Laravel projects: use pos_alja.php85.test instead
-# =======================================================
-server {
     listen 8085;
     server_name _;
+
     root /var/www/html;
     index index.php index.html;
     charset utf-8;
+    client_max_body_size 100M;
 
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
     location ~ \.php$ {
-        fastcgi_pass php85:9000;
+        fastcgi_pass $port_fpm;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_read_timeout 300s;
+        fastcgi_send_timeout 300s;
         include fastcgi_params;
     }
 
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
     location ~ /\.(?!well-known).* { deny all; }
 }
 
 # =======================================================
-# 9. Tailscale Routing for Your Active Project
+# 3. Tailscale Routing for Your Active Project
 # =======================================================
 server {
     listen 8084;
@@ -354,29 +98,33 @@ server {
     if (-d /var/www/html/${TAILSCALE_PROJECT_PATH}/public) {
         set $tailscale_root /var/www/html/${TAILSCALE_PROJECT_PATH}/public;
     }
-    if (-f /var/www/html/${TAILSCALE_PROJECT_PATH}/index.php) {
-        set $tailscale_root /var/www/html/${TAILSCALE_PROJECT_PATH};
-    }
     if (-f /var/www/html/${TAILSCALE_PROJECT_PATH}/artisan) {
         set $tailscale_root /var/www/html/${TAILSCALE_PROJECT_PATH}/public;
+    }
+    if (-f /var/www/html/${TAILSCALE_PROJECT_PATH}/index.php) {
+        set $tailscale_root /var/www/html/${TAILSCALE_PROJECT_PATH};
     }
 
     root $tailscale_root;
     index index.php index.html;
     charset utf-8;
+    client_max_body_size 100M;
 
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
     location ~ \.php$ {
         fastcgi_pass php84:9000;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_read_timeout 300s;
+        fastcgi_send_timeout 300s;
         include fastcgi_params;
     }
 
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
     location ~ /\.(?!well-known).* { deny all; }
 }

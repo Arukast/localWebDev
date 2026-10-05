@@ -18,7 +18,7 @@ Instead of polluting your host operating system with conflicting PHP, Node.js, o
 - **Polyglot Database Engine**: Built-in support for MariaDB, PostgreSQL, Redis, Meilisearch, and MinIO object storage.
 - **Zero-Configuration HTTPS & DNS**: Automatic local wildcard SSL certificate generation (`*.test`) and OS-level DNS routing via integrated `dnsmasq`.
 - **Integrated Mail & Debugging**: Intercept local outgoing emails using Mailpit and debug applications with native Xdebug support on demand.
-- **Unified Developer CLI**: Manage services, scaffold projects, perform database operations, create state snapshots, and manage Cloudflare Tunnels using `./dev`.
+- **Unified Developer CLI**: Manage services, scaffold projects, perform database operations, and create state snapshots using `./dev`.
 
 ---
 

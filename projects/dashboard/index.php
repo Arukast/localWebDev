@@ -341,7 +341,7 @@ usort($projects, function($a, $b) {
                 </div>
                 <div class="guide-step">
                     <strong>Run Composer:</strong>
-                    <div class="code-snippet" onclick="copyText(this)">./dev composer my-app install</div>
+                    <div class="code-snippet" onclick="copyText(this)">./dev composer install</div>
                 </div>
                 <div class="guide-step">
                     <strong>Database Dump:</strong>
@@ -350,10 +350,6 @@ usort($projects, function($a, $b) {
                 <div class="guide-step">
                     <strong>Enable Local DNS:</strong>
                     <div class="code-snippet" onclick="copyText(this)">./dev dns setup</div>
-                </div>
-                <div class="guide-step">
-                    <strong>Cloudflare Tunnel Share:</strong>
-                    <div class="code-snippet" onclick="copyText(this)">./dev share my-app</div>
                 </div>
             </div>
         </div>

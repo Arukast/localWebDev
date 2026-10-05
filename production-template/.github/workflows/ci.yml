@@ -19,10 +19,7 @@ jobs:
           docker compose config --quiet
 
       - name: ShellCheck Scripts
-        uses: ludeeus/action-shellcheck@master
-        with:
-          scripthashtag: '#!/bin/bash'
-          ignore: SC1091
+        run: shellcheck --severity=warning backup.sh restore.sh init-ssl.sh
 
       - name: Test PHP Docker Build
         run: |

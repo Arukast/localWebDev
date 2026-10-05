@@ -50,7 +50,7 @@ Before ending a session, the agent must perform these tasks:
 * `dev`: Primary CLI control script.
 * `docker-compose.yml`: Multi-container service definitions with profile management.
 * `nginx/conf.d/default.conf.template`: Dynamic wildcard domain router (`*.test`, `*.php82.test`, `*.php83.test`, `*.php84.test`, `*.php85.test`).
-* `php82/`, `php83/`, `php84/`, `php85/`: PHP FPM container build contexts and custom `php.ini` configurations.
+* `php/`: Unified PHP FPM container build context (`PHP_VERSION` build arg) and shared custom `php.ini` configuration.
 * `projects/`: Root host mount directory where individual PHP & Node web applications reside.
 
 ---
@@ -82,6 +82,5 @@ Before ending a session, the agent must perform these tasks:
 ### 4.3 Containerization & Commands
 * `./dev up`: Start core containers.
 * `./dev up --tools`: Start core containers + Web GUIs & extra tools.
-* `./dev share <project>`: Expose project via ephemeral Cloudflare Tunnel.
 * `./dev completion install`: Install shell completion for Bash/Zsh/Fish.
 * `./dev db shell <mariadb|postgres>`: Interactive database shell inside container.

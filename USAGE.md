@@ -28,7 +28,7 @@ Detailed instructions for installing, configuring, running, and using localDev.
    *(To start optional Web GUIs, Meilisearch, and MinIO: `./dev up --tools`)*
 
 3. **Check the Dashboard / Port Fallbacks**:
-   - Default Primary PHP (`*.test`): Configurable via `DEFAULT_PHP_VERSION` in `.env` (defaults to `php85`).
+   - Default Primary PHP (`*.test`): Configurable via `DEFAULT_PHP_VERSION` in `.env` (defaults to `php85`). The same setting drives the default version for `./dev composer|php|npm|npx|node|artisan|new`.
    - PHP 8.5: [https://my-app.test](https://my-app.test) (or [http://localhost:8085](http://localhost:8085))
    - PHP 8.4: [https://my-app.php84.test](https://my-app.php84.test) (or [http://localhost:8084](http://localhost:8084))
    - PHP 8.3: [https://my-app.php83.test](https://my-app.php83.test) (or [http://localhost:8083](http://localhost:8083))
@@ -53,20 +53,24 @@ The environment includes a unified `./dev` executable script to simplify daily d
 | `./dev logs [-f] [service]` | View log output |
 | `./dev ssl` | Generate or renew local wildcard SSL certificates (`*.test`) |
 | `./dev dns [setup\|status\|teardown]` | Configure automatic cross-platform local DNS resolution for `*.test` domains |
-| `./dev new <name> [options]` | Scaffold new project (`--type=laravel\|wordpress\|symfony\|vite\|blank`, `--php=8.4\|8.3\|8.2\|8.5`, `--db=mariadb\|postgres`) |
+| `./dev new <name> [options]` | Scaffold new project (`--type=laravel\|wordpress\|symfony\|vite\|blank`, `--php=8.5\|8.4\|8.3\|8.2`, `--db=mariadb\|postgres`) |
 | `./dev list` | List all local projects with their HTTPS domain links and port fallbacks |
-| `./dev share <project>` | Share local project publicly over HTTPS using ephemeral Cloudflare Tunnel |
-| `./dev composer [8.4\|8.3\|8.2\|8.5] <args>` | Execute Composer inside PHP container (auto-detects project folder) |
+| `./dev composer [8.5\|8.4\|8.3\|8.2] <args>` | Execute Composer inside PHP container (auto-detects project folder) |
 | `./dev artisan [app] <command>` | Run Laravel Artisan command inside target project |
-| `./dev php [8.4\|8.3\|8.2\|8.5] <args>` | Run PHP CLI inside target container |
-| `./dev npm [8.4\|8.3\|8.2\|8.5] <args>` | Run NPM command inside PHP container |
-| `./dev npx [8.4\|8.3\|8.2\|8.5] <args>` | Run NPX command inside PHP container |
-| `./dev node [8.4\|8.3\|8.2\|8.5] <args>` | Run Node script inside PHP container |
+| `./dev php [8.5\|8.4\|8.3\|8.2] <args>` | Run PHP CLI inside target container |
+| `./dev npm [8.5\|8.4\|8.3\|8.2] <args>` | Run NPM command inside PHP container |
+| `./dev npx [8.5\|8.4\|8.3\|8.2] <args>` | Run NPX command inside PHP container |
+| `./dev node [8.5\|8.4\|8.3\|8.2] <args>` | Run Node script inside PHP container |
 | `./dev db shell <mariadb\|postgres>` | Open interactive database shell inside container |
 | `./dev db backup <mariadb\|postgres> [file.sql]` | Dump database backup file |
 | `./dev db restore <mariadb\|postgres> <file.sql>` | Restore database from SQL dump |
 | `./dev snapshot [save\|restore\|list\|delete]` | Create, list, restore, or delete compressed state snapshots |
+| `./dev test [unit\|integration\|all]` | Run the CLI test harnesses |
 | `./dev completion install` | Install shell completions into `~/.zshrc`, `~/.bashrc`, or fish config |
+| `./dev help` | Show all commands and the active default PHP version |
+
+> [!NOTE]
+> Versioned commands (`composer`, `php`, `npm`, `npx`, `node`, `artisan`, `new`) default to the container set by `DEFAULT_PHP_VERSION` in `.env` (e.g. `php85`) unless you pass an explicit version.
 
 ---
 
@@ -96,10 +100,11 @@ The environment includes a unified `./dev` executable script to simplify daily d
 ## Configuration Details
 
 ### Xdebug Step-Debugging
-All PHP containers are pre-configured with Xdebug. By default, `XDEBUG_MODE=off` to keep performance native.
+All PHP containers are pre-configured with Xdebug. By default, `XDEBUG_MODE=off` to keep performance native. Debugging is trigger-based (`xdebug.start_with_request=trigger`), so ordinary requests never wait on the debugger.
 1. Set `XDEBUG_MODE=debug` in your `.env` file.
-2. Restart PHP container: `./dev restart php84`.
+2. Restart the PHP container: `./dev restart php85` (or your target version).
 3. Configure your IDE (VSCode or PhpStorm) to listen on port `9003`.
+4. Start a debug session with the `XDEBUG_TRIGGER=1` query parameter or cookie (the PhpStorm browser extension / VSCode PHP Debug browser helper sets this automatically).
 
 ### Local SSL / HTTPS Setup (`*.test`)
 1. **Automatic Certificate Generation**:

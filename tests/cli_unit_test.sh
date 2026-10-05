@@ -85,6 +85,10 @@ assert_contains "Snapshot list command header" "$output_snap_list" "Local Enviro
 assert_exit_code "Snapshot restore without args returns exit code 1" 1 "$DEV_BIN" snapshot restore
 assert_exit_code "Snapshot delete without args returns exit code 1" 1 "$DEV_BIN" snapshot delete
 
+# 7. Regression guards
+assert_exit_code "Artisan without project returns exit code 1" 1 "$DEV_BIN" artisan
+assert_contains "Snapshot without subcommand lists snapshots" "$("$DEV_BIN" snapshot 2>&1)" "Local Environment Snapshots"
+
 echo ""
 echo "=== Unit Test Summary ==="
 echo "Passed: $PASSED | Failed: $FAILED"

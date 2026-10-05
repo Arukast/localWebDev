@@ -63,8 +63,14 @@ assert_contains "Status output shows local-dnsmasq" "$output_ps_running" "local-
 
 # 5. Bring down service
 echo "Bringing down service..."
-output_down=$("$DEV_BIN" down 2>&1) || true
-assert_contains "Docker down succeeds" "$output_down" "Stopped"
+"$DEV_BIN" down >/dev/null 2>&1 || true
+if ! docker ps --format '{{.Names}}' | grep -q "^local-dnsmasq$"; then
+    echo "  ✅ PASS: Dnsmasq container stopped after down"
+    PASSED=$((PASSED + 1))
+else
+    echo "  ❌ FAIL: Dnsmasq container still running after down"
+    FAILED=$((FAILED + 1))
+fi
 
 # 6. Snapshot Lifecycle Test
 echo "Testing Snapshot Lifecycle..."
