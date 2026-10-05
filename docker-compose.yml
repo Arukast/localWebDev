@@ -280,10 +280,12 @@ services:
       - local-network
     restart: unless-stopped
 
-  # Redis Commander (Web UI for Redis)
+  # Redis Commander (Web UI for Redis; built locally — Hub image is amd64-only)
   redis-commander:
     profiles: ["tools"]
-    image: rediscommander/redis-commander:latest
+    build:
+      context: ./redis-commander
+      dockerfile: Dockerfile
     container_name: local-redis-commander
     ports:
       - "127.0.0.1:${REDIS_COMMANDER_PORT:-8086}:8081"
