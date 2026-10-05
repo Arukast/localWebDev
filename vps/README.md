@@ -103,6 +103,12 @@ the project should load. The dashboard is at `https://dashboard.dev.example.com`
 - Tailscale still works independently: the `TAILSCALE_DOMAIN` block serves a chosen
   project to your tailnet on `local-nginx:8084` without going through Cloudflare
 
+## Changing configuration later
+
+Edit `.env` and run `./dev up` — Compose recreates only the containers whose settings
+changed. Don't re-run `vps/setup.sh` for config tweaks: it force-rewrites the keys it
+manages (domain, nginx ports/bind, phpMyAdmin port) from its arguments.
+
 ## Security notes
 
 - Only NPM and cloudflared face the network; nginx and all tool ports bind to
